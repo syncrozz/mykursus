@@ -1,0 +1,6 @@
+{
+  "name": "MyKursus",
+  "description": "Universal platform for managing courses and providing centralized participant access.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
