@@ -33,9 +33,24 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
     // If no slug is specified, try looking at window.location
     let activeSlug = currentSlug;
     if (!activeSlug) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const querySlug = searchParams.get('course') || searchParams.get('c') || searchParams.get('slug');
+      if (querySlug) {
+        activeSlug = querySlug;
+      }
+    }
+
+    if (!activeSlug) {
       const hash = window.location.hash;
       if (hash.startsWith('#/course/')) {
         activeSlug = hash.replace('#/course/', '');
+      } else if (hash.startsWith('#course/')) {
+        activeSlug = hash.replace('#course/', '');
+      } else if (hash.startsWith('#/')) {
+        const potential = hash.replace('#/', '');
+        if (potential && !['admin', 'organizer', 'participant'].includes(potential)) {
+          activeSlug = potential;
+        }
       } else if (window.location.pathname.startsWith('/course/')) {
         activeSlug = window.location.pathname.replace('/course/', '');
       }
@@ -43,7 +58,7 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
 
     if (!activeSlug) {
       // Default to first published or pilot course if available
-      const pilot = allCourses.find(c => c.slug === 'transformasi-pedagogi-kiar-2026') || allCourses[0];
+      const pilot = allCourses.find(c => c.slug === 'kursus-transformasi-kiar-2026' || c.slug === 'transformasi-pedagogi-kiar-2026') || allCourses[0];
       if (pilot) {
         activeSlug = pilot.slug;
       }
@@ -128,7 +143,7 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
                 type="text"
                 value={slugInput}
                 onChange={(e) => setSlugInput(e.target.value)}
-                placeholder="transformasi-pedagogi-kiar-2026"
+                placeholder="kursus-transformasi-kiar-2026"
                 className="flex-1 px-3 py-2 text-xs font-mono font-bold border-2 border-zinc-900 focus:outline-none focus:bg-white"
               />
             </div>

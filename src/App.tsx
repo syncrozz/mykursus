@@ -81,11 +81,27 @@ export default function App() {
     // Check if initial URL points to a public course slug
     const path = window.location.pathname;
     const hash = window.location.hash;
-    let initialSlug = '';
-    if (path.startsWith('/course/')) {
-      initialSlug = path.replace('/course/', '').trim();
-    } else if (hash.startsWith('#/course/')) {
-      initialSlug = hash.replace('#/course/', '').trim();
+    const searchParams = new URLSearchParams(window.location.search);
+
+    let initialSlug = 
+      searchParams.get('course') || 
+      searchParams.get('c') || 
+      searchParams.get('slug') || 
+      '';
+
+    if (!initialSlug) {
+      if (path.startsWith('/course/')) {
+        initialSlug = path.replace('/course/', '').trim();
+      } else if (hash.startsWith('#/course/')) {
+        initialSlug = hash.replace('#/course/', '').trim();
+      } else if (hash.startsWith('#course/')) {
+        initialSlug = hash.replace('#course/', '').trim();
+      } else if (hash.startsWith('#/')) {
+        const potentialSlug = hash.replace('#/', '').trim();
+        if (potentialSlug && !['admin', 'organizer', 'participant'].includes(potentialSlug)) {
+          initialSlug = potentialSlug;
+        }
+      }
     }
 
     if (initialSlug) {

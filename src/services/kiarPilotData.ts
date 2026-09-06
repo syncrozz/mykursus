@@ -27,7 +27,7 @@ export const KIAR_PILOT_ORGANIZER: Organizer = {
 
 export const KIAR_PILOT_COURSE: Course = {
   id: 'course-kiar-2026-01',
-  slug: 'transformasi-pedagogi-kiar-2026',
+  slug: 'kursus-transformasi-kiar-2026',
   title: 'Kursus Transformasi Pedagogi MPU2412 KIAR',
   subtitle: 'Bengkel Pemantapan Pengajaran dan Pembelajaran Kursus MPU2412',
   code: 'MPU2412',

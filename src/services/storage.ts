@@ -181,16 +181,57 @@ class PlatformStorageRepository {
     if (!cleanSlug) return undefined;
 
     let courses = this.getCourses();
+    
+    // 1. Direct exact match
     let found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug);
     if (found) return found;
 
-    // Fallback: If benchmark pilot course matches slug, or if storage has no courses yet, load KIAR pilot
-    if (cleanSlug === KIAR_PILOT_COURSE.slug.toLowerCase() || courses.length === 0) {
+    // 2. Recognized aliases for KIAR Pilot Course
+    const kiarAliases = [
+      'kursus-transformasi-kiar-2026',
+      'transformasi-pedagogi-kiar-2026',
+      'transformasi-kiar-2026',
+      'kursus-transformasi-pedagogi-kiar-2026',
+      'kiar-2026',
+      'kiar'
+    ];
+
+    const isKiarTarget = kiarAliases.includes(cleanSlug) || 
+      (cleanSlug.includes('kiar') && (cleanSlug.includes('transformasi') || cleanSlug.includes('pedagogi')));
+
+    if (isKiarTarget) {
+      const existingKiar = courses.find(c => c.id === KIAR_PILOT_COURSE.id);
+      if (existingKiar) {
+        // Ensure slug is synced to the canonical or requested
+        if (existingKiar.slug !== 'kursus-transformasi-kiar-2026') {
+          existingKiar.slug = 'kursus-transformasi-kiar-2026';
+          this.saveCourse(existingKiar);
+        }
+        return existingKiar;
+      } else {
+        this.loadKiarPilot();
+        courses = this.getCourses();
+        return courses.find(c => c.id === KIAR_PILOT_COURSE.id) || KIAR_PILOT_COURSE;
+      }
+    }
+
+    // 3. Fallback: If no courses are loaded yet, load pilot
+    if (courses.length === 0) {
       this.loadKiarPilot();
       courses = this.getCourses();
-      found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug) || this.getCourseById(KIAR_PILOT_COURSE.id);
-      return found;
+      found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug);
+      if (found) return found;
+      if (cleanSlug.includes('kiar')) {
+        return courses.find(c => c.id === KIAR_PILOT_COURSE.id) || KIAR_PILOT_COURSE;
+      }
     }
+
+    // 4. Fuzzy / partial match across any existing courses
+    const partial = courses.find(c => {
+      const s = c.slug.toLowerCase();
+      return s.includes(cleanSlug) || cleanSlug.includes(s);
+    });
+    if (partial) return partial;
 
     return undefined;
   }

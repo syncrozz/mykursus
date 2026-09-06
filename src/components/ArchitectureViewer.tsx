@@ -450,7 +450,7 @@ ORGANIZER -> APPROVAL -> PARTICIPANT FLOW:
 2. Organizer populates Participant Roster & Agenda Sessions
 3. Organizer submits Course for review -> Status: SUBMITTED
 4. Master Admin inspects & Approves -> Status: APPROVED -> PUBLISHED
-5. Stable Slug generated: mykursus.app/course/transformasi-pedagogi-kiar-2026
+5. Stable Slug generated: mykursus.syncrozz.com/course/kursus-transformasi-kiar-2026
 6. QR Code generated -> Participants scan -> Access unified digital companion!
 7. Organizer posts live emergency announcement -> Updates instantly on participant screens!
   `
