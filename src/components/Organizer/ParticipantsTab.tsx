@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -14,9 +14,19 @@ import {
   Home, 
   User, 
   AlertCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Download,
+  Upload,
+  HardDrive,
+  CopyCheck,
+  Check
 } from 'lucide-react';
 import { Participant, CourseEnrollment, Course } from '../../types';
+import { exportParticipantsToCSV, auditCourseDuplicates } from '../../utils/dataPortability';
+import { ImportCSVModal } from './DataSafety/ImportCSVModal';
+import { BackupDataModal } from './DataSafety/BackupDataModal';
+import { AuditDuplikasiModal } from './DataSafety/AuditDuplikasiModal';
+import { platformStorage } from '../../services/storage';
 
 interface ParticipantsTabProps {
   course: Course;
@@ -24,6 +34,8 @@ interface ParticipantsTabProps {
   onSaveParticipant: (participantData: Partial<Participant>, enrollmentData: Partial<CourseEnrollment>) => void;
   onDeleteParticipant: (participantId: string) => void;
   onUpdateAllocations: (enrollmentId: string, allocations: Partial<CourseEnrollment>) => void;
+  onBulkImportParticipants?: (rows: Array<{ participant: Partial<Participant>; enrollment: Partial<CourseEnrollment> }>) => void;
+  onRestoreBackup?: (payload: any) => void;
 }
 
 export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
@@ -32,9 +44,17 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
   onSaveParticipant,
   onDeleteParticipant,
   onUpdateAllocations,
+  onBulkImportParticipants,
+  onRestoreBackup,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'CONFIRMED' | 'REGISTERED' | 'ATTENDED'>('ALL');
+
+  // Data Safety Modal states
+  const [showImportModal, setShowImportModal] = useState<boolean>(false);
+  const [showBackupModal, setShowBackupModal] = useState<boolean>(false);
+  const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Modal states
   const [showAddEditModal, setShowAddEditModal] = useState<boolean>(false);
@@ -131,6 +151,59 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
     setShowAllocationModal(null);
   };
 
+  // Duplicate records count badge for Audit Duplikasi button
+  const duplicateBadgeCount = useMemo(() => {
+    return auditCourseDuplicates(enrollments).totalDuplicateRecords;
+  }, [enrollments]);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4500);
+  };
+
+  // CSV Portability Actions (SES 4.4)
+  const handleExportCSV = () => {
+    try {
+      exportParticipantsToCSV(course, enrollments);
+      showToast(`Senarai ${enrollments.length} peserta berjaya dieksport ke fail CSV.`);
+    } catch (err: any) {
+      alert(`Ralat semasa mengeksport CSV: ${err.message}`);
+    }
+  };
+
+  const handleCommitImport = (
+    rowsToImport: Array<{
+      participant: Partial<Participant>;
+      enrollment: Partial<CourseEnrollment>;
+    }>
+  ) => {
+    try {
+      if (onBulkImportParticipants) {
+        onBulkImportParticipants(rowsToImport);
+      } else {
+        platformStorage.bulkImportParticipants(course.id, rowsToImport);
+      }
+      showToast(`Berjaya mengimport/mengemas kini ${rowsToImport.length} rekod peserta.`);
+    } catch (err: any) {
+      alert(`Ralat semasa mengimport data: ${err.message}`);
+    }
+  };
+
+  const handleRestoreBackupData = (payload: any) => {
+    try {
+      if (onRestoreBackup) {
+        onRestoreBackup(payload);
+      } else {
+        platformStorage.restoreCourseBackup(course.id, payload);
+      }
+      showToast('Pemulihan sandaran data berjaya dilaksanakan.');
+    } catch (err: any) {
+      alert(`Ralat semasa memulihkan data: ${err.message}`);
+    }
+  };
+
   // Filter list
   const filteredEnrollments = (enrollments || []).filter(({ participant, enrollment }) => {
     const q = searchQuery.toLowerCase().trim();
@@ -149,25 +222,108 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Top Header & Search Bar */}
-      <div className="bg-white border-2 border-zinc-900 p-4 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-black text-zinc-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-zinc-800" />
-            <span>Pengurusan Peserta ({enrollments.length} Orang)</span>
-          </h3>
-          <p className="text-xs text-zinc-600">
-            Maklumat pendaftaran kursus dan peruntukan peribadi (bilik, rakan sebilik, kumpulan).
-          </p>
+      {/* Toast Notification Banner */}
+      {toastMessage && (
+        <div className="bg-emerald-900 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between border-2 border-zinc-900 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setToastMessage(null)}
+            className="text-zinc-300 hover:text-white text-xs cursor-pointer ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Top Header & Data Management Toolbar (SES 4.4 Locked Order) */}
+      <div className="bg-white border-2 border-zinc-900 p-4 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] space-y-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black text-zinc-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-zinc-800" />
+              <span>Pengurusan Peserta ({enrollments.length} Orang)</span>
+            </h3>
+            <p className="text-xs text-zinc-600">
+              Maklumat pendaftaran kursus dan peruntukan peribadi (bilik, rakan sebilik, kumpulan).
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* SES 4.4 Data-Management Toolbar Order:
+            LEFTMOST: [ Eksport CSV ]
+            MIDDLE: [ Backup Data ] [ Audit Duplikasi ] [ + Tambah Peserta ]
+            RIGHTMOST: [ Import CSV ]
+        */}
+        <div 
+          id="participants-data-management-toolbar"
+          className="pt-3 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-2.5"
+        >
+          {/* LEFTMOST: Eksport CSV */}
           <button
-            onClick={openAddModal}
-            className="px-4 py-2 bg-blue-600 text-white text-xs font-bold border-2 border-zinc-900 hover:bg-blue-700 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]"
+            id="btn-export-csv"
+            type="button"
+            onClick={handleExportCSV}
+            className="px-3.5 py-2 bg-zinc-100 hover:bg-zinc-200 border-2 border-zinc-900 text-zinc-900 text-xs font-bold flex items-center gap-1.5 transition-all shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+            title="Eksport senarai peserta semasa ke fail CSV (UTF-8)"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>+ Tambah Peserta</span>
+            <Download className="w-4 h-4 text-zinc-700" />
+            <span>Eksport CSV</span>
+          </button>
+
+          {/* MIDDLE: Relevant Actions (Backup Data, Audit Duplikasi, + Tambah Peserta) */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              id="btn-backup-data"
+              type="button"
+              onClick={() => setShowBackupModal(true)}
+              className="px-3 py-2 bg-white hover:bg-zinc-50 border-2 border-zinc-900 text-zinc-800 text-xs font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+              title="Sandaran luar talian bagi data peserta dan peruntukan (SES v4.4)"
+            >
+              <HardDrive className="w-4 h-4 text-blue-600" />
+              <span>Backup Data</span>
+            </button>
+
+            <button
+              id="btn-audit-duplikasi"
+              type="button"
+              onClick={() => setShowAuditModal(true)}
+              className="px-3 py-2 bg-white hover:bg-zinc-50 border-2 border-zinc-900 text-zinc-800 text-xs font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+              title="Semak pertindihan rekod berdasarkan no telefon, no gaji, dan emel"
+            >
+              <CopyCheck className="w-4 h-4 text-amber-600" />
+              <span>Audit Duplikasi</span>
+              {duplicateBadgeCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-white text-[10px] font-mono font-bold rounded-full">
+                  {duplicateBadgeCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              id="btn-add-participant"
+              type="button"
+              onClick={openAddModal}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold border-2 border-zinc-900 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ Tambah Peserta</span>
+            </button>
+          </div>
+
+          {/* RIGHTMOST: Import CSV */}
+          <button
+            id="btn-import-csv"
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white border-2 border-zinc-900 text-xs font-bold flex items-center gap-1.5 transition-all shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+            title="Import data peserta dari fail CSV dengan pengesahan dan semakan"
+          >
+            <Upload className="w-4 h-4 text-white" />
+            <span>Import CSV</span>
           </button>
         </div>
       </div>
@@ -563,13 +719,13 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAllocationModal(null)}
-                  className="px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100"
+                  className="px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-800"
+                  className="px-4 py-1.5 bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-800 cursor-pointer"
                 >
                   Simpan Peruntukan
                 </button>
@@ -578,6 +734,32 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* SES 4.4 Data Safety Modals */}
+      <ImportCSVModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        course={course}
+        enrollments={enrollments}
+        onCommitImport={handleCommitImport}
+      />
+
+      <BackupDataModal
+        isOpen={showBackupModal}
+        onClose={() => setShowBackupModal(false)}
+        course={course}
+        enrollments={enrollments}
+        onRestoreBackup={handleRestoreBackupData}
+      />
+
+      <AuditDuplikasiModal
+        isOpen={showAuditModal}
+        onClose={() => setShowAuditModal(false)}
+        course={course}
+        enrollments={enrollments}
+        onEditParticipant={openEditModal}
+        onDeleteParticipant={onDeleteParticipant}
+      />
     </div>
   );
 };

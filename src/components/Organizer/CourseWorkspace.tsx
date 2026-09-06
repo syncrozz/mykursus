@@ -70,6 +70,8 @@ interface CourseWorkspaceProps {
   onSaveParticipant: (participantData: Partial<Participant>, enrollmentData: Partial<CourseEnrollment>) => void;
   onDeleteParticipant: (participantId: string) => void;
   onUpdateAllocations: (enrollmentId: string, allocations: Partial<CourseEnrollment>) => void;
+  onBulkImportParticipants?: (rows: Array<{ participant: Partial<Participant>; enrollment: Partial<CourseEnrollment> }>) => void;
+  onRestoreBackup?: (payload: any) => void;
   onSaveDay: (day: ScheduleDay) => void;
   onDeleteDay: (dayId: string) => void;
   onSaveSession: (session: SessionItem) => void;
@@ -104,6 +106,8 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
   onSaveParticipant,
   onDeleteParticipant,
   onUpdateAllocations,
+  onBulkImportParticipants,
+  onRestoreBackup,
   onSaveDay,
   onDeleteDay,
   onSaveSession,
@@ -335,6 +339,8 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
           onSaveParticipant={onSaveParticipant}
           onDeleteParticipant={onDeleteParticipant}
           onUpdateAllocations={onUpdateAllocations}
+          onBulkImportParticipants={onBulkImportParticipants}
+          onRestoreBackup={onRestoreBackup}
         />
       )}
 

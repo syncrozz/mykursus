@@ -993,18 +993,23 @@ class PlatformStorageRepository {
     const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
     const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
 
-    // Clean inputs (Smart Data Entry per Section 23)
+    // Clean inputs (Smart Data Entry per Section 23 & SES 4.4)
     const cleanName = participantData.name?.trim() || 'Peserta Tanpa Nama';
     const cleanEmail = participantData.email?.trim().toLowerCase() || '';
-    const cleanPhone = participantData.phone?.trim().replace(/\s+/g, '') || '';
+    const cleanPhone = participantData.phone ? String(participantData.phone).trim() : '';
+    const normPhone = normalizePhoneNumber(cleanPhone);
     const cleanInst = participantData.institutionOrAgency?.trim() || 'Kolej / Agensi';
     const cleanSalary = participantData.salaryNumber?.trim() || enrollmentData.salaryNumber?.trim() || '';
 
-    // Find or create participant
+    // Find or create participant safely using ID or normalized phone or salary
     let pId = participantData.id;
     let existingP = pId ? participants.find(p => p.id === pId) : undefined;
-    if (!existingP && cleanPhone) {
-      existingP = participants.find(p => p.phone === cleanPhone);
+    if (!existingP && normPhone) {
+      existingP = participants.find(p => normalizePhoneNumber(p.phone) === normPhone);
+      if (existingP) pId = existingP.id;
+    }
+    if (!existingP && cleanSalary) {
+      existingP = participants.find(p => p.salaryNumber && p.salaryNumber.trim() === cleanSalary);
       if (existingP) pId = existingP.id;
     }
 
@@ -1093,6 +1098,173 @@ class PlatformStorageRepository {
       const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
       saveToStorage(STORAGE_KEYS.PARTICIPANTS, participants.filter(p => p.id !== participantId));
     }
+  }
+
+  /**
+   * SES 4.4 Bulk Import Participants with strict validation, deduplication and auditing
+   */
+  public bulkImportParticipants(
+    courseId: string,
+    rows: Array<{
+      participant: Partial<Participant>;
+      enrollment: Partial<CourseEnrollment>;
+    }>,
+    user?: UserAuthContext
+  ): { importedCount: number; updatedCount: number } {
+    if (user) {
+      const access = this.checkOrganizerCourseAccess(user, courseId);
+      if (!access.allowed) throw new Error(access.reason);
+    }
+
+    const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
+    const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+
+    let importedCount = 0;
+    let updatedCount = 0;
+
+    for (const item of rows) {
+      const { participant: pData, enrollment: eData } = item;
+      const cleanName = pData.name?.trim() || 'Peserta';
+      const cleanPhone = pData.phone ? String(pData.phone).trim() : '';
+      const normPhone = normalizePhoneNumber(cleanPhone);
+      const cleanSalary = (pData.salaryNumber || eData.salaryNumber || '').trim();
+      const cleanEmail = pData.email?.trim().toLowerCase() || '';
+      const cleanInst = pData.institutionOrAgency?.trim() || 'Kolej / Agensi';
+
+      // Match existing participant by normalized phone or salary number
+      let existingP = participants.find(p => {
+        const pNorm = normalizePhoneNumber(p.phone);
+        const phoneMatch = Boolean(normPhone && pNorm && normPhone === pNorm);
+        const salaryMatch = Boolean(cleanSalary && p.salaryNumber && p.salaryNumber.trim() === cleanSalary);
+        return phoneMatch || salaryMatch;
+      });
+
+      let targetParticipant: Participant;
+      if (existingP) {
+        existingP.name = cleanName;
+        if (cleanPhone) existingP.phone = cleanPhone;
+        if (cleanEmail) existingP.email = cleanEmail;
+        if (cleanInst) existingP.institutionOrAgency = cleanInst;
+        if (cleanSalary) existingP.salaryNumber = cleanSalary;
+        if (pData.designation) existingP.designation = pData.designation.trim();
+        if (pData.gender) existingP.gender = pData.gender;
+        targetParticipant = existingP;
+      } else {
+        targetParticipant = {
+          id: 'p-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          name: cleanName,
+          phone: cleanPhone,
+          email: cleanEmail,
+          institutionOrAgency: cleanInst,
+          designation: pData.designation?.trim(),
+          salaryNumber: cleanSalary,
+          gender: pData.gender,
+          createdAt: new Date().toISOString()
+        };
+        participants.push(targetParticipant);
+      }
+
+      // Check course enrollment
+      let existingEnr = enrollments.find(e => e.courseId === courseId && e.participantId === targetParticipant.id);
+      if (existingEnr) {
+        existingEnr.status = eData.status || existingEnr.status;
+        if (eData.roomNumber !== undefined) existingEnr.roomNumber = eData.roomNumber.trim();
+        if (eData.roommateName !== undefined) existingEnr.roommateName = eData.roommateName.trim();
+        if (eData.assignedGroup !== undefined) existingEnr.assignedGroup = eData.assignedGroup.trim();
+        if (eData.specialRequirements !== undefined) existingEnr.specialRequirements = eData.specialRequirements.trim();
+        if (eData.secretariatNotes !== undefined) existingEnr.secretariatNotes = eData.secretariatNotes.trim();
+        if (cleanSalary) existingEnr.salaryNumber = cleanSalary;
+        existingEnr.updatedAt = new Date().toISOString();
+        updatedCount++;
+      } else {
+        enrollments.push({
+          id: 'enr-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          courseId,
+          participantId: targetParticipant.id,
+          status: eData.status || 'CONFIRMED',
+          attendanceConfirmed: eData.attendanceConfirmed ?? true,
+          roomNumber: eData.roomNumber?.trim() || '',
+          roommateName: eData.roommateName?.trim() || '',
+          assignedGroup: eData.assignedGroup?.trim() || '',
+          specialRequirements: eData.specialRequirements?.trim() || '',
+          secretariatNotes: eData.secretariatNotes?.trim() || '',
+          salaryNumber: cleanSalary,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        importedCount++;
+      }
+    }
+
+    saveToStorage(STORAGE_KEYS.PARTICIPANTS, participants);
+    saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments);
+
+    const course = this.getCourseById(courseId);
+    this.addAuditLog(
+      'IMPORT_CSV_PESERTA',
+      `Import CSV selesai: ${importedCount} peserta baru ditambah, ${updatedCount} rekod dikemaskini.`,
+      courseId,
+      course?.title,
+      user?.role || UserRole.ORGANIZER_ADMIN
+    );
+
+    return { importedCount, updatedCount };
+  }
+
+  /**
+   * SES 4.4 Offline Backup Restoration
+   * CRITICAL: Must ONLY be called on explicit user action. Never auto-restored.
+   */
+  public restoreCourseBackup(
+    courseId: string,
+    payload: any,
+    user?: UserAuthContext
+  ): { restoredParticipants: number; restoredEnrollments: number } {
+    if (user) {
+      const access = this.checkOrganizerCourseAccess(user, courseId);
+      if (!access.allowed) throw new Error(access.reason);
+    }
+
+    if (!payload || !Array.isArray(payload.participants) || !Array.isArray(payload.enrollments)) {
+      throw new Error('Format fail sandaran tidak sah.');
+    }
+
+    const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
+    const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+
+    let pCount = 0;
+    for (const p of payload.participants) {
+      const existingIdx = participants.findIndex(
+        item => item.id === p.id || (p.phone && normalizePhoneNumber(item.phone) === normalizePhoneNumber(p.phone))
+      );
+      if (existingIdx >= 0) {
+        participants[existingIdx] = { ...participants[existingIdx], ...p };
+      } else {
+        participants.push(p);
+      }
+      pCount++;
+    }
+
+    // Replace enrollments for this specific course with restored snapshot
+    const otherEnrollments = enrollments.filter(e => e.courseId !== courseId);
+    const restoredEnrollments = payload.enrollments.map((e: any) => ({
+      ...e,
+      courseId // enforce binding to current course
+    }));
+
+    saveToStorage(STORAGE_KEYS.PARTICIPANTS, participants);
+    saveToStorage(STORAGE_KEYS.ENROLLMENTS, [...otherEnrollments, ...restoredEnrollments]);
+
+    const course = this.getCourseById(courseId);
+    this.addAuditLog(
+      'BACKUP_DATA_RESTORED',
+      `Pemulihan sandaran data berjaya: ${restoredEnrollments.length} pendaftaran peserta dipulihkan.`,
+      courseId,
+      course?.title,
+      user?.role || UserRole.ORGANIZER_ADMIN
+    );
+
+    return { restoredParticipants: pCount, restoredEnrollments: restoredEnrollments.length };
   }
 
   public updateEnrollmentPrivateAllocations(

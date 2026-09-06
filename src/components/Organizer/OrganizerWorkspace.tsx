@@ -171,6 +171,26 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     }
   };
 
+  const handleBulkImportParticipants = (rows: Array<{ participant: Partial<Participant>; enrollment: Partial<CourseEnrollment> }>) => {
+    if (!activeCourse) return;
+    try {
+      platformStorage.bulkImportParticipants(activeCourse.id, rows, authContext);
+      handleRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleRestoreBackup = (payload: any) => {
+    if (!activeCourse) return;
+    try {
+      platformStorage.restoreCourseBackup(activeCourse.id, payload, authContext);
+      handleRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   // Schedule Actions
   const handleSaveDay = (day: ScheduleDay) => {
     if (!activeCourse) return;
@@ -400,6 +420,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onSaveParticipant={handleSaveParticipant}
           onDeleteParticipant={handleDeleteParticipant}
           onUpdateAllocations={handleUpdateAllocations}
+          onBulkImportParticipants={handleBulkImportParticipants}
+          onRestoreBackup={handleRestoreBackup}
           onSaveDay={handleSaveDay}
           onDeleteDay={handleDeleteDay}
           onSaveSession={handleSaveSession}
