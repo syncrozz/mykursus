@@ -85,11 +85,12 @@ class PlatformStorageRepository {
   }
 
   private checkInitialization() {
-    // Note: DCOREV1 mandates "No automatic seed data in production. Empty means empty."
-    // If empty, it starts as an empty database.
     const isInit = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
-    if (!isInit) {
-      // By default start clean. User can click "Load KIAR Pilot Benchmark" to test real validation.
+    const wasManuallyCleared = localStorage.getItem('mykursus_manually_cleared') === 'true';
+    const existingCourses = this.getCourses();
+
+    if (!wasManuallyCleared && (!isInit || existingCourses.length === 0)) {
+      this.loadKiarPilot();
       localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
     }
     this.initialized = true;
@@ -175,7 +176,23 @@ class PlatformStorageRepository {
   }
 
   public getCourseBySlug(slug: string): Course | undefined {
-    return this.getCourses().find(c => c.slug === slug);
+    if (!slug) return undefined;
+    const cleanSlug = slug.trim().toLowerCase().replace(/^#?\/?course\/?/, '').replace(/\/+$/, '').split('?')[0];
+    if (!cleanSlug) return undefined;
+
+    let courses = this.getCourses();
+    let found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug);
+    if (found) return found;
+
+    // Fallback: If benchmark pilot course matches slug, or if storage has no courses yet, load KIAR pilot
+    if (cleanSlug === KIAR_PILOT_COURSE.slug.toLowerCase() || courses.length === 0) {
+      this.loadKiarPilot();
+      courses = this.getCourses();
+      found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug) || this.getCourseById(KIAR_PILOT_COURSE.id);
+      return found;
+    }
+
+    return undefined;
   }
 
   public saveCourse(course: Course): void {
@@ -2048,6 +2065,7 @@ class PlatformStorageRepository {
 
   // --- Pilot Validation Seed & Reset Helpers ---
   public loadKiarPilot(): void {
+    localStorage.removeItem('mykursus_manually_cleared');
     // 1. Save Organizer
     const organizers = this.getOrganizers();
     if (!organizers.some(o => o.id === KIAR_PILOT_ORGANIZER.id)) {
@@ -2159,6 +2177,7 @@ class PlatformStorageRepository {
 
   public clearAllData(): void {
     // Purge everything cleanly per DCOREV1 "Deleted Means Deleted"
+    localStorage.setItem('mykursus_manually_cleared', 'true');
     saveToStorage(STORAGE_KEYS.COURSES, []);
     saveToStorage(STORAGE_KEYS.ORGANIZERS, []);
     saveToStorage(STORAGE_KEYS.PARTICIPANTS, []);

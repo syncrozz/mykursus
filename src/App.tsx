@@ -89,7 +89,8 @@ export default function App() {
     }
 
     if (initialSlug) {
-      setActiveParticipantSlug(initialSlug);
+      const cleanSlug = initialSlug.replace(/\/+$/, '').split('?')[0].split('#')[0].toLowerCase();
+      setActiveParticipantSlug(cleanSlug);
       setAppMode('participant');
     }
   }, []);
@@ -217,8 +218,14 @@ export default function App() {
           {/* Participant Experience Mode Switcher (PART 05) */}
           <button
             onClick={() => {
-              if (courses.length > 0 && !activeParticipantSlug) {
-                setActiveParticipantSlug(courses[0].slug);
+              const currentCourses = platformStorage.getCourses();
+              if (currentCourses.length === 0) {
+                platformStorage.loadKiarPilot();
+                reloadData();
+              }
+              const activeCourses = platformStorage.getCourses();
+              if (activeCourses.length > 0 && !activeParticipantSlug) {
+                setActiveParticipantSlug(activeCourses[0].slug);
               }
               setAppMode('participant');
             }}

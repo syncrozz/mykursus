@@ -54,6 +54,7 @@ import {
   formatWhatsAppAnnouncement, 
   formatWhatsAppCourseShare 
 } from '../../utils/communicationHelpers';
+import { copyToClipboard } from '../../utils/clipboard';
 import { MyInformationTab } from './MyInformationTab';
 
 interface ParticipantCourseViewProps {
@@ -141,18 +142,25 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
     localStorage.setItem(`mykursus_checklist_${course.id}`, JSON.stringify(updated));
   };
 
-  const handleCopyWifiPassword = (password: string) => {
+  const handleCopyWifiPassword = async (password: string) => {
     if (!password) return;
-    navigator.clipboard.writeText(password);
+    await copyToClipboard(password);
     setCopiedWifi(true);
     setTimeout(() => setCopiedWifi(false), 2500);
   };
 
-  const handleCopyCourseLink = () => {
+  const handleCopyCourseLink = async () => {
     const url = `${window.location.origin}/course/${course.slug}`;
-    navigator.clipboard.writeText(url);
+    await copyToClipboard(url);
     setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+    setTimeout(() => setCopiedLink(false), 3000);
+
+    // Buka pautan kursus dalam tab baharu supaya pengguna dapat akses terus
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn('Unable to open window directly:', e);
+    }
   };
 
   const handleVerified = (data: VerifiedParticipantData) => {
@@ -241,18 +249,18 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
     setReadAnnouncementIds(allIds);
   };
 
-  const handleCopyAnnouncementWhatsApp = (ann: Announcement) => {
+  const handleCopyAnnouncementWhatsApp = async (ann: Announcement) => {
     const linkedSession = sessions.find(s => s.id === ann.relatedSessionId);
     const linkedResource = directResources.find(r => r.id === ann.relatedResourceId);
     const text = formatWhatsAppAnnouncement(course, ann, linkedSession, linkedResource);
-    navigator.clipboard.writeText(text);
+    await copyToClipboard(text);
     setCopiedAnnId(ann.id);
     setTimeout(() => setCopiedAnnId(null), 2500);
   };
 
-  const handleCopyCourseShare = () => {
+  const handleCopyCourseShare = async () => {
     const text = formatWhatsAppCourseShare(course);
-    navigator.clipboard.writeText(text);
+    await copyToClipboard(text);
     setCopiedShareText(true);
     setTimeout(() => setCopiedShareText(false), 2500);
   };
@@ -292,19 +300,35 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
             <span className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 bg-blue-600 text-white shrink-0">
               MYKURSUS
             </span>
-            <span className="font-mono text-xs text-zinc-300 truncate">
-              /course/{course.slug}
-            </span>
+            <a
+              href={`${window.location.origin}/course/${course.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-xs text-zinc-300 hover:text-white hover:underline truncate flex items-center gap-1 transition-colors"
+              title="Buka pautan awam kursus ini dalam tab baharu"
+            >
+              <span>/course/{course.slug}</span>
+              <ExternalLink className="w-3 h-3 shrink-0 text-zinc-400" />
+            </a>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleCopyCourseLink}
-              className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-[11px] font-bold flex items-center gap-1.5 transition-colors"
-              title="Salin Pautan Kursus"
+              className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Akses / Buka pautan kursus dalam tab baharu dan salin URL"
             >
-              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{copiedLink ? 'Pautan Disalin!' : 'Kongsi Pautan'}</span>
+              {copiedLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline text-emerald-400">Pautan Dibuka & Disalin!</span>
+                </>
+              ) : (
+                <>
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="hidden sm:inline">Akses & Salin Pautan</span>
+                </>
+              )}
             </button>
 
             {onClosePreview && (
@@ -1810,13 +1834,14 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                     className="w-full text-xs font-mono bg-white border border-zinc-300 px-2 py-1 select-all"
                   />
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href);
-                      alert('Pautan kursus telah disalin!');
+                    onClick={async () => {
+                      await copyToClipboard(window.location.href);
+                      setCopiedShareText(true);
+                      setTimeout(() => setCopiedShareText(false), 2500);
                     }}
-                    className="px-3 py-1 bg-zinc-900 text-white text-xs font-bold shrink-0 hover:bg-zinc-800"
+                    className="px-3 py-1 bg-zinc-900 text-white text-xs font-bold shrink-0 hover:bg-zinc-800 cursor-pointer"
                   >
-                    Salin
+                    {copiedShareText ? 'Disalin!' : 'Salin'}
                   </button>
                 </div>
               </div>

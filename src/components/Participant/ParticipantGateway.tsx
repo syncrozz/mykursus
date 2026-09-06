@@ -21,7 +21,11 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
   const [notFoundError, setNotFoundError] = useState(false);
 
   // Load available published courses for quick navigation
-  const allCourses = platformStorage.getCourses();
+  let allCourses = platformStorage.getCourses();
+  if (allCourses.length === 0) {
+    platformStorage.loadKiarPilot();
+    allCourses = platformStorage.getCourses();
+  }
   const publishedCourses = allCourses.filter(c => c.approvalStatus === 'APPROVED' || c.isFeaturedActive);
 
   // Resolve slug on mount or when currentSlug changes
@@ -46,9 +50,10 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
     }
 
     if (activeSlug) {
-      setCurrentSlug(activeSlug);
-      setSlugInput(activeSlug);
-      const found = platformStorage.getCourseBySlug(activeSlug);
+      const clean = activeSlug.trim().toLowerCase().replace(/^#?\/?course\/?/, '').replace(/\/+$/, '').split('?')[0];
+      setCurrentSlug(clean);
+      setSlugInput(clean);
+      const found = platformStorage.getCourseBySlug(clean);
       if (found) {
         setCourse(found);
         setNotFoundError(false);
@@ -61,7 +66,7 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = slugInput.trim().toLowerCase().replace(/^\/course\//, '');
+    const clean = slugInput.trim().toLowerCase().replace(/^#?\/?course\/?/, '').replace(/\/+$/, '').split('?')[0];
     if (!clean) return;
     setCurrentSlug(clean);
     const found = platformStorage.getCourseBySlug(clean);
