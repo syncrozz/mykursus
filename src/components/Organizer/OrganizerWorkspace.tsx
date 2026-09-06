@@ -9,7 +9,9 @@ import {
   ScheduleDay, 
   SessionItem, 
   Announcement,
-  ResourceMaterial
+  ResourceMaterial,
+  AttendanceRecord,
+  ParticipantLifecycleStatus
 } from '../../types';
 import { platformStorage } from '../../services/storage';
 import { OrganizerHeader } from './OrganizerHeader';
@@ -88,6 +90,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   const announcements = activeCourse ? platformStorage.getAnnouncementsByCourseId(activeCourse.id) : [];
   const resources = activeCourse ? platformStorage.getResourcesByCourseId(activeCourse.id) : [];
   const auditLogs = activeCourse ? platformStorage.getAuditLogsByCourseId(activeCourse.id) : [];
+  const attendanceRecords = activeCourse ? platformStorage.getAttendanceRecordsByCourseId(activeCourse.id) : [];
 
   const handleRefresh = () => {
     setDataVersion(v => v + 1);
@@ -251,6 +254,56 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     }
   };
 
+  // Attendance Handlers (DCOREV1 Section 09)
+  const handleSaveAttendance = (record: AttendanceRecord) => {
+    try {
+      platformStorage.saveAttendanceRecord(record, authContext);
+      handleRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleBulkSaveAttendance = (records: AttendanceRecord[]) => {
+    if (!activeCourse) return;
+    try {
+      platformStorage.bulkSaveAttendanceRecords(activeCourse.id, records, authContext);
+      handleRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteAttendance = (recordId: string) => {
+    if (!activeCourse) return;
+    try {
+      platformStorage.deleteAttendanceRecord(recordId, activeCourse.id, authContext);
+      handleRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleUpdateParticipantLifecycleStatus = (enrollmentId: string, status: ParticipantLifecycleStatus) => {
+    if (!activeCourse) return;
+    try {
+      platformStorage.updateParticipantLifecycleStatus(activeCourse.id, enrollmentId, status, authContext);
+      handleRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleUpdateAttendanceConfig = (config: any) => {
+    if (!activeCourse) return;
+    try {
+      platformStorage.updateCourseAttendanceConfig(activeCourse.id, config, authContext);
+      handleRefresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const handleLoadPilot = () => {
     platformStorage.loadKiarPilot();
     handleRefresh();
@@ -338,6 +391,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           announcements={announcements}
           resources={resources}
           auditLogs={auditLogs}
+          attendanceRecords={attendanceRecords}
+          authContext={authContext}
           onBackToDashboard={() => setSelectedCourseId(null)}
           onUpdateCourse={handleUpdateCourse}
           onSubmitForReview={handleSubmitForReview}
@@ -353,6 +408,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onDeleteAnnouncement={handleDeleteAnnouncement}
           onSaveResource={handleSaveResource}
           onDeleteResource={handleDeleteResource}
+          onSaveAttendance={handleSaveAttendance}
+          onBulkSaveAttendance={handleBulkSaveAttendance}
+          onDeleteAttendance={handleDeleteAttendance}
+          onUpdateParticipantStatus={handleUpdateParticipantLifecycleStatus}
+          onUpdateAttendanceConfig={handleUpdateAttendanceConfig}
           onOpenPublicPreview={() => {
             if (onOpenPublicPreview) onOpenPublicPreview(activeCourse);
           }}

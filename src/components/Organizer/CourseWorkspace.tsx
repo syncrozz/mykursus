@@ -154,12 +154,6 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
     { id: 'logistics', label: 'Logistik & Urus Setia', icon: Building },
     { id: 'audit', label: `Log Operasi (${auditLogs.length})`, icon: History },
   ];
-    { id: 'resources', label: `Bahan & Slaid (${resources.length})`, icon: BookOpen },
-    { id: 'announcements', label: `Pengumuman (${announcements.length})`, icon: Bell },
-    { id: 'accommodation', label: 'Penginapan', icon: Home },
-    { id: 'logistics', label: 'Logistik & Urus Setia', icon: Building },
-    { id: 'audit', label: `Log Operasi (${auditLogs.length})`, icon: History },
-  ];
 
   return (
     <div className="space-y-6">
@@ -341,6 +335,22 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
           onSaveParticipant={onSaveParticipant}
           onDeleteParticipant={onDeleteParticipant}
           onUpdateAllocations={onUpdateAllocations}
+        />
+      )}
+
+      {activeTab === 'attendance' && (
+        <AttendanceTab
+          course={course}
+          enrollments={enrollments}
+          scheduleDays={scheduleDays}
+          sessions={sessions}
+          attendanceRecords={attendanceRecords}
+          authContext={authContext}
+          onSaveAttendance={onSaveAttendance}
+          onBulkSaveAttendance={onBulkSaveAttendance}
+          onDeleteAttendance={onDeleteAttendance}
+          onUpdateParticipantStatus={onUpdateParticipantStatus}
+          onUpdateAttendanceConfig={onUpdateAttendanceConfig}
         />
       )}
 
