@@ -177,7 +177,16 @@ export async function syncAnnouncementToFirestore(announcement: any): Promise<vo
       ...announcement,
     }, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn('Firestore sync announcement error:', error);
+  }
+}
+
+export async function deleteAnnouncementFromFirestore(courseId: string, announcementId: string): Promise<void> {
+  const path = `courses/${courseId}/announcements/${announcementId}`;
+  try {
+    await deleteDoc(doc(db, 'courses', courseId, 'announcements', announcementId));
+  } catch (error) {
+    console.warn('Firestore delete announcement error:', error);
   }
 }
 
@@ -189,7 +198,61 @@ export async function syncAttendanceToFirestore(attendance: any): Promise<void> 
       ...attendance,
     }, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.warn('Firestore sync attendance error:', error);
   }
 }
+
+export async function syncResourceToFirestore(resource: any): Promise<void> {
+  if (!resource?.id || !resource?.courseId) return;
+  const path = `courses/${resource.courseId}/resources/${resource.id}`;
+  try {
+    await setDoc(doc(db, 'courses', resource.courseId, 'resources', resource.id), {
+      ...resource,
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Firestore sync resource error:', error);
+  }
+}
+
+export async function deleteResourceFromFirestore(courseId: string, resourceId: string): Promise<void> {
+  const path = `courses/${courseId}/resources/${resourceId}`;
+  try {
+    await deleteDoc(doc(db, 'courses', courseId, 'resources', resourceId));
+  } catch (error) {
+    console.warn('Firestore delete resource error:', error);
+  }
+}
+
+export async function syncParticipantToFirestore(participant: any): Promise<void> {
+  if (!participant?.id) return;
+  try {
+    await setDoc(doc(db, 'participants', participant.id), {
+      ...participant,
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Firestore sync participant error:', error);
+  }
+}
+
+export async function syncEnrollmentToFirestore(enrollment: any): Promise<void> {
+  if (!enrollment?.id || !enrollment?.courseId) return;
+  const path = `courses/${enrollment.courseId}/enrollments/${enrollment.id}`;
+  try {
+    await setDoc(doc(db, 'courses', enrollment.courseId, 'enrollments', enrollment.id), {
+      ...enrollment,
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Firestore sync enrollment error:', error);
+  }
+}
+
+export async function deleteEnrollmentFromFirestore(courseId: string, enrollmentId: string): Promise<void> {
+  const path = `courses/${courseId}/enrollments/${enrollmentId}`;
+  try {
+    await deleteDoc(doc(db, 'courses', courseId, 'enrollments', enrollmentId));
+  } catch (error) {
+    console.warn('Firestore delete enrollment error:', error);
+  }
+}
+
 

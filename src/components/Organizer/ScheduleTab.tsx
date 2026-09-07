@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -53,6 +53,19 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
 }) => {
   const sortedDays = [...(scheduleDays || [])].sort((a, b) => a.dayNumber - b.dayNumber);
   const [activeDayNumber, setActiveDayNumber] = useState<number>(sortedDays[0]?.dayNumber || 1);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Auto-sync activeDayNumber when days change
+  useEffect(() => {
+    if (sortedDays.length > 0 && !sortedDays.some(d => d.dayNumber === activeDayNumber)) {
+      setActiveDayNumber(sortedDays[0].dayNumber);
+    }
+  }, [sortedDays, activeDayNumber]);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   // CSV Import/Export states
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -63,6 +76,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
   const [editingSession, setEditingSession] = useState<SessionItem | null>(null);
 
   // Session form fields
+  const [sessionDayNumber, setSessionDayNumber] = useState<number>(activeDayNumber);
   const [sessionNumber, setSessionNumber] = useState<number>(1);
   const [startTime, setStartTime] = useState('08:30');
   const [endTime, setEndTime] = useState('10:30');
@@ -86,6 +100,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
 
   const openAddSessionModal = () => {
     setEditingSession(null);
+    setSessionDayNumber(activeDayNumber || 1);
     setSessionNumber(currentDaySessions.length + 1);
     setStartTime('09:00');
     setEndTime('10:30');
@@ -102,6 +117,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
 
   const openEditSessionModal = (s: SessionItem) => {
     setEditingSession(s);
+    setSessionDayNumber(s.dayNumber);
     setSessionNumber(s.sessionNumber);
     setStartTime(s.startTime);
     setEndTime(s.endTime);
@@ -125,12 +141,25 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
       cleanUrl = 'https://' + cleanUrl;
     }
 
+    const targetDay = sessionDayNumber || activeDayNumber || 1;
+
+    // If day does not exist in scheduleDays, auto-create day record
+    if (!sortedDays.some(d => d.dayNumber === targetDay)) {
+      onSaveDay({
+        id: 'day-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+        courseId: course.id,
+        dayNumber: targetDay,
+        date: course.startDate || new Date().toISOString().split('T')[0],
+        theme: `Hari ${targetDay}`,
+      });
+    }
+
     const finalSessionId = editingSession?.id || 'sess-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
 
     onSaveSession({
       id: finalSessionId,
       courseId: course.id,
-      dayNumber: activeDayNumber,
+      dayNumber: targetDay,
       sessionNumber,
       startTime,
       endTime,
@@ -143,6 +172,9 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
       isBreakOrMeal,
       updatedAt: new Date().toISOString(),
     });
+
+    setActiveDayNumber(targetDay);
+    showToast(editingSession ? '✓ Sesi berjaya dikemaskini!' : '✓ Sesi baharu berjaya ditambah!');
 
     if (broadcastChange && onPublishAnnouncement) {
       const isLocChange = editingSession && editingSession.location !== location.trim();
@@ -177,6 +209,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
     });
     setActiveDayNumber(nextDayNum);
     setShowAddDayModal(false);
+    showToast(`✓ Hari ${nextDayNum} berjaya ditambah!`);
   };
 
   const handleCommitImportSessions = (
@@ -196,6 +229,23 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Visual Feedback Toast */}
+      {toastMessage && (
+        <div className="p-3 bg-emerald-100 border-2 border-emerald-600 text-emerald-950 text-xs font-bold flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(5,150,105,1)] animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{toastMessage}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setToastMessage(null)}
+            className="text-emerald-800 hover:text-emerald-950 font-bold ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Day Selector & Management */}
       <div className="bg-white border-2 border-zinc-900 p-4 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
@@ -465,6 +515,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
                   onClick={() => {
                     if (confirm(`Padam sesi "${session.title}"?`)) {
                       onDeleteSession(session.id);
+                      showToast(`✓ Sesi "${session.title}" dipadam.`);
                     }
                   }}
                   className="px-2 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200"
@@ -497,7 +548,27 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
             </div>
 
             <form onSubmit={handleSaveSessionForm} className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-900 mb-1">
+                    Hari Kursus
+                  </label>
+                  <select
+                    value={sessionDayNumber}
+                    onChange={(e) => setSessionDayNumber(parseInt(e.target.value) || 1)}
+                    className="w-full p-2 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-bold bg-white"
+                  >
+                    {sortedDays.map((d) => (
+                      <option key={d.id} value={d.dayNumber}>
+                        Hari {d.dayNumber}
+                      </option>
+                    ))}
+                    {sortedDays.length === 0 && (
+                      <option value={1}>Hari 1</option>
+                    )}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-zinc-900 mb-1">
                     No. Sesi

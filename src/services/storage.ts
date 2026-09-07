@@ -34,6 +34,21 @@ import {
   KIAR_PILOT_SOURCE_DOCUMENTS
 } from './kiarPilotData';
 import { ExtractionEngine } from './extractionEngine';
+import {
+  syncCourseToFirestore,
+  syncSessionToFirestore,
+  deleteSessionFromFirestore,
+  syncScheduleDayToFirestore,
+  deleteScheduleDayFromFirestore,
+  syncAnnouncementToFirestore,
+  deleteAnnouncementFromFirestore,
+  syncAttendanceToFirestore,
+  syncResourceToFirestore,
+  deleteResourceFromFirestore,
+  syncParticipantToFirestore,
+  syncEnrollmentToFirestore,
+  deleteEnrollmentFromFirestore,
+} from './firebase';
 
 export interface UserAuthContext {
   id: string;
@@ -72,6 +87,9 @@ function getFromStorage<T>(key: string, fallback: T): T {
 function saveToStorage<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mykursus_data_changed', { detail: { key } }));
+    }
   } catch (err) {
     console.error('Storage write error for key:', key, err);
   }
@@ -256,6 +274,7 @@ class PlatformStorageRepository {
       });
     }
     saveToStorage(STORAGE_KEYS.COURSES, courses);
+    syncCourseToFirestore(course).catch(err => console.warn('Firestore sync course error:', err));
   }
 
   public deleteCourse(id: string): boolean {
@@ -972,6 +991,7 @@ class PlatformStorageRepository {
       days.push(day);
     }
     saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, days);
+    syncScheduleDayToFirestore(day).catch(err => console.warn('Firestore sync day error:', err));
   }
 
   public deleteScheduleDay(id: string, courseId: string, user?: UserAuthContext): void {
@@ -982,6 +1002,7 @@ class PlatformStorageRepository {
 
     const days = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
     saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, days.filter(d => d.id !== id));
+    deleteScheduleDayFromFirestore(courseId, id).catch(err => console.warn('Firestore delete day error:', err));
   }
 
   // --- Session Management (DCOREV1 Section 10 & 16) ---
@@ -1005,6 +1026,7 @@ class PlatformStorageRepository {
       sessions.push(updatedSession);
     }
     saveToStorage(STORAGE_KEYS.SESSIONS, sessions);
+    syncSessionToFirestore(updatedSession).catch(err => console.warn('Firestore sync session error:', err));
 
     this.addAuditLog(
       isNew ? 'SESSION_CREATED' : 'SESSION_UPDATED',
@@ -1024,6 +1046,7 @@ class PlatformStorageRepository {
     const sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
     const target = sessions.find(s => s.id === id);
     saveToStorage(STORAGE_KEYS.SESSIONS, sessions.filter(s => s.id !== id));
+    deleteSessionFromFirestore(courseId, id).catch(err => console.warn('Firestore delete session error:', err));
 
     if (target) {
       this.addAuditLog(
@@ -1185,6 +1208,9 @@ class PlatformStorageRepository {
     }
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments);
 
+    syncParticipantToFirestore(finalParticipant).catch(err => console.warn('Firestore sync participant error:', err));
+    syncEnrollmentToFirestore(finalEnrollment).catch(err => console.warn('Firestore sync enrollment error:', err));
+
     return { participant: finalParticipant, enrollment: finalEnrollment };
   }
 
@@ -1199,8 +1225,13 @@ class PlatformStorageRepository {
     }
 
     const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+    const targetEnr = enrollments.find(e => e.courseId === courseId && e.participantId === participantId);
     const filteredEnrs = enrollments.filter(e => !(e.courseId === courseId && e.participantId === participantId));
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, filteredEnrs);
+
+    if (targetEnr) {
+      deleteEnrollmentFromFirestore(courseId, targetEnr.id).catch(err => console.warn('Firestore delete enrollment error:', err));
+    }
 
     // If this participant has no other courses, clean from participants list
     const otherCourses = filteredEnrs.filter(e => e.participantId === participantId);
@@ -1690,6 +1721,7 @@ class PlatformStorageRepository {
       list.push(updated);
     }
     saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, list);
+    syncAnnouncementToFirestore(updated).catch(err => console.warn('Firestore sync announcement error:', err));
 
     this.addAuditLog(
       isNew ? 'ANNOUNCEMENT_PUBLISHED' : 'ANNOUNCEMENT_UPDATED',
@@ -1711,6 +1743,7 @@ class PlatformStorageRepository {
     const list = getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
     const target = list.find(a => a.id === id);
     saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, list.filter(a => a.id !== id));
+    deleteAnnouncementFromFirestore(courseId, id).catch(err => console.warn('Firestore delete announcement error:', err));
 
     if (target) {
       this.addAuditLog(
@@ -1781,6 +1814,7 @@ class PlatformStorageRepository {
       list.push(updated);
     }
     saveToStorage(STORAGE_KEYS.RESOURCES, list);
+    syncResourceToFirestore(updated).catch(err => console.warn('Firestore sync resource error:', err));
 
     this.addAuditLog(
       'RESOURCE_PUBLISHED',
@@ -1802,6 +1836,7 @@ class PlatformStorageRepository {
     const list = getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []);
     const target = list.find(r => r.id === id);
     saveToStorage(STORAGE_KEYS.RESOURCES, list.filter(r => r.id !== id));
+    deleteResourceFromFirestore(courseId, id).catch(err => console.warn('Firestore delete resource error:', err));
 
     if (target) {
       this.addAuditLog(

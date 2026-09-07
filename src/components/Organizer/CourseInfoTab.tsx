@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
   Calendar, 
@@ -41,6 +41,20 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
   const [endDate, setEndDate] = useState(course.endDate);
   const [venueName, setVenueName] = useState(course.venueName);
   const [venueAddress, setVenueAddress] = useState(course.venueAddress || '');
+
+  // Keep state updated when course prop changes
+  useEffect(() => {
+    setTitle(course.title || '');
+    setSubtitle(course.subtitle || '');
+    setCode(course.code || '');
+    setDescription(course.description || '');
+    setInstructions(course.instructions || '');
+    setObjectives(course.objectives || []);
+    setStartDate(course.startDate || '');
+    setEndDate(course.endDate || '');
+    setVenueName(course.venueName || '');
+    setVenueAddress(course.venueAddress || '');
+  }, [course.id, course.updatedAt, course.title, course.startDate, course.endDate, course.venueName]);
 
   // Change request modal state
   const [showChangeModal, setShowChangeModal] = useState<'DATES' | 'VENUE' | null>(null);

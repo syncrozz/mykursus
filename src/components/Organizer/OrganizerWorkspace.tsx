@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
+  CheckCircle2, 
+  AlertCircle 
+} from 'lucide-react';
+import { 
   Course, 
   Organizer, 
   UserRole, 
@@ -44,6 +48,25 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
   // Reload trigger
   const [dataVersion, setDataVersion] = useState<number>(0);
+
+  // Toast feedback state
+  const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showFeedback = (message: string, type: 'success' | 'error' = 'success') => {
+    setFeedback({ message, type });
+    setTimeout(() => setFeedback(null), 4000);
+  };
+
+  // Event listener for storage changes across components and tabs
+  useEffect(() => {
+    const handleDataChanged = () => {
+      setDataVersion(v => v + 1);
+    };
+    window.addEventListener('mykursus_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('mykursus_data_changed', handleDataChanged);
+    };
+  }, []);
 
   useEffect(() => {
     const orgs = platformStorage.getOrganizers();
@@ -103,8 +126,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       setShowCreateModal(false);
       handleRefresh();
       setSelectedCourseId(newCourse.id);
+      showFeedback('✓ Kursus baharu berjaya dicipta!');
     } catch (err: any) {
-      alert(err.message || 'Ralat menyimpan draf kursus.');
+      showFeedback(err.message || 'Ralat menyimpan draf kursus.', 'error');
     }
   };
 
@@ -113,8 +137,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.updateCourseOperational(activeCourse.id, updates, authContext);
       handleRefresh();
+      showFeedback('✓ Maklumat kursus berjaya dikemaskini & disimpan ke Cloud!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -123,9 +148,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.submitCourseForReview(activeCourse.id, authContext);
       handleRefresh();
-      alert('Kursus berjaya dihantar untuk semakan Master Admin.');
+      showFeedback('✓ Kursus berjaya dihantar untuk semakan Master Admin.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -134,9 +159,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.proposeHighRiskChange(activeCourse.id, targetField, proposedValue, reason, authContext);
       handleRefresh();
-      alert('Permohonan pindaan rasmi telah dihantar kepada Master Admin.');
+      showFeedback('✓ Permohonan pindaan rasmi telah dihantar kepada Master Admin.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -146,8 +171,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.saveParticipant(activeCourse.id, pData, eData, authContext);
       handleRefresh();
+      showFeedback('✓ Maklumat peserta berjaya dikemaskini & disimpan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -156,8 +182,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.deleteParticipantFromCourse(activeCourse.id, participantId, authContext);
       handleRefresh();
+      showFeedback('✓ Rekod peserta telah dikeluarkan.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -166,8 +193,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.updateEnrollmentPrivateAllocations(activeCourse.id, enrollmentId, allocations, authContext);
       handleRefresh();
+      showFeedback('✓ Agihan bilik / kumpulan peserta dikemaskini!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -176,8 +204,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.bulkImportParticipants(activeCourse.id, rows, authContext);
       handleRefresh();
+      showFeedback(`✓ Pukal peserta (${rows.length} orang) berjaya diimport!`);
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -186,8 +215,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.restoreCourseBackup(activeCourse.id, payload, authContext);
       handleRefresh();
+      showFeedback('✓ Sandaran kursus berjaya dipulihkan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -197,8 +227,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.saveScheduleDay(day, authContext);
       handleRefresh();
+      showFeedback('✓ Hari jadual berjaya disimpan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -207,8 +238,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.deleteScheduleDay(dayId, activeCourse.id, authContext);
       handleRefresh();
+      showFeedback('✓ Hari jadual telah dipadam.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -217,8 +249,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.saveSession(session, authContext);
       handleRefresh();
+      showFeedback('✓ Sesi jadual berjaya disimpan & diselaraskan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -227,8 +260,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.deleteSession(sessionId, activeCourse.id, authContext);
       handleRefresh();
+      showFeedback('✓ Sesi jadual telah dipadam.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -247,9 +281,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         authContext
       );
       handleRefresh();
-      alert(`Berjaya mengimport ${res.importedCount} slot jadual!${res.daysCreatedCount > 0 ? ` (${res.daysCreatedCount} hari baharu ditambah)` : ''}`);
+      showFeedback(`✓ Berjaya mengimport ${res.importedCount} slot jadual!${res.daysCreatedCount > 0 ? ` (${res.daysCreatedCount} hari baharu ditambah)` : ''}`);
     } catch (err: any) {
-      alert(`Ralat semasa import: ${err.message}`);
+      showFeedback(`Ralat semasa import: ${err.message}`, 'error');
     }
   };
 
@@ -259,8 +293,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.saveAnnouncement(ann, authContext);
       handleRefresh();
+      showFeedback('✓ Pengumuman langsung diterbitkan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -269,8 +304,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.deleteAnnouncement(id, activeCourse.id, authContext);
       handleRefresh();
+      showFeedback('✓ Pengumuman telah dipadam.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -280,8 +316,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.saveResource(res, authContext);
       handleRefresh();
+      showFeedback('✓ Bahan rujukan kursus berjaya dimuat naik & disimpan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -290,8 +327,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.deleteResource(id, activeCourse.id, authContext);
       handleRefresh();
+      showFeedback('✓ Bahan rujukan telah dipadam.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -300,8 +338,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.saveAttendanceRecord(record, authContext);
       handleRefresh();
+      showFeedback('✓ Rekod kehadiran berjaya dikemaskini!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -310,8 +349,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.bulkSaveAttendanceRecords(activeCourse.id, records, authContext);
       handleRefresh();
+      showFeedback('✓ Rekod kehadiran pukal berjaya disimpan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -320,8 +360,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.deleteAttendanceRecord(recordId, activeCourse.id, authContext);
       handleRefresh();
+      showFeedback('✓ Rekod kehadiran telah dipadam.');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -330,8 +371,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.updateParticipantLifecycleStatus(activeCourse.id, enrollmentId, status, authContext);
       handleRefresh();
+      showFeedback('✓ Status penyertaan dikemaskini!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -340,8 +382,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       platformStorage.updateCourseAttendanceConfig(activeCourse.id, config, authContext);
       handleRefresh();
+      showFeedback('✓ Tetapan kehadiran kursus disimpan!');
     } catch (err: any) {
-      alert(err.message);
+      showFeedback(err.message, 'error');
     }
   };
 
@@ -395,6 +438,31 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+      {/* Toast Feedback Notification */}
+      {feedback && (
+        <div className={`p-3 border-2 text-xs font-bold flex items-center justify-between shadow-[3px_3px_0px_0px_rgba(24,24,27,1)] animate-in fade-in slide-in-from-top-2 duration-200 ${
+          feedback.type === 'error' 
+            ? 'bg-red-100 border-red-800 text-red-950' 
+            : 'bg-emerald-100 border-emerald-800 text-emerald-950'
+        }`}>
+          <div className="flex items-center gap-2">
+            {feedback.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-red-700 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setFeedback(null)} 
+            className="text-zinc-600 hover:text-zinc-950 font-bold ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header bar with tenant switcher and role simulator */}
       <OrganizerHeader
         currentOrganizer={currentOrganizer}
