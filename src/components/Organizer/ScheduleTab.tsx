@@ -13,10 +13,16 @@ import {
   CheckCircle2, 
   Layers,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Download,
+  Upload,
+  ChevronDown,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ScheduleDay, SessionItem, Course, Announcement } from '../../types';
 import { Bell } from 'lucide-react';
+import { exportSessionsToCSV, downloadSessionCsvTemplate } from '../../utils/scheduleCsvPortability';
+import { ImportSessionCSVModal } from './ImportSessionCSVModal';
 
 interface ScheduleTabProps {
   course: Course;
@@ -27,6 +33,11 @@ interface ScheduleTabProps {
   onSaveSession: (session: SessionItem) => void;
   onDeleteSession: (sessionId: string) => void;
   onPublishAnnouncement?: (announcement: Announcement) => void;
+  onBulkImportSessions?: (
+    sessionsToImport: SessionItem[], 
+    newDaysToCreate: ScheduleDay[], 
+    replaceExistingDays: number[]
+  ) => void;
 }
 
 export const ScheduleTab: React.FC<ScheduleTabProps> = ({
@@ -38,9 +49,14 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
   onSaveSession,
   onDeleteSession,
   onPublishAnnouncement,
+  onBulkImportSessions,
 }) => {
   const sortedDays = [...(scheduleDays || [])].sort((a, b) => a.dayNumber - b.dayNumber);
   const [activeDayNumber, setActiveDayNumber] = useState<number>(sortedDays[0]?.dayNumber || 1);
+
+  // CSV Import/Export states
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Modal states for Session
   const [showSessionModal, setShowSessionModal] = useState(false);
@@ -163,6 +179,21 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
     setShowAddDayModal(false);
   };
 
+  const handleCommitImportSessions = (
+    importedSessions: SessionItem[], 
+    newDaysToCreate: ScheduleDay[], 
+    replaceDays: number[]
+  ) => {
+    if (onBulkImportSessions) {
+      onBulkImportSessions(importedSessions, newDaysToCreate, replaceDays);
+    } else {
+      if (newDaysToCreate && newDaysToCreate.length > 0) {
+        newDaysToCreate.forEach(d => onSaveDay(d));
+      }
+      importedSessions.forEach(s => onSaveSession(s));
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Day Selector & Management */}
@@ -198,10 +229,96 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
           </button>
         </div>
 
-        <div>
+        {/* Action Controls: Export CSV, Import CSV & Add Session */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Eksport CSV Dropdown */}
+          <div className="relative">
+            <button
+              id="btn-schedule-export-csv"
+              type="button"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="px-3 py-2 bg-white text-zinc-800 hover:bg-zinc-100 border-2 border-zinc-900 text-xs font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] transition-all cursor-pointer"
+              title="Eksport jadual slot kursus ke fail CSV"
+            >
+              <Download className="w-3.5 h-3.5 text-zinc-700" />
+              <span>Eksport CSV</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showExportMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-20" 
+                  onClick={() => setShowExportMenu(false)} 
+                />
+                <div className="absolute right-0 sm:right-auto sm:left-0 mt-1 w-64 bg-white border-2 border-zinc-900 shadow-[4px_4px_0px_0px_rgba(24,24,27,1)] z-30 py-1 text-xs divide-y divide-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportSessionsToCSV(course, sessions, scheduleDays);
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-zinc-100 flex items-center justify-between cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-bold text-zinc-900">Eksport Semua Slot</div>
+                      <div className="text-[10px] text-zinc-500">Semua {sessions.length} slot dalam kursus</div>
+                    </div>
+                    <FileSpreadsheet className="w-4 h-4 text-zinc-600" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportSessionsToCSV(course, sessions, scheduleDays, activeDayNumber);
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-zinc-100 flex items-center justify-between cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-bold text-zinc-900">Eksport Hari {activeDayNumber} Sahaja</div>
+                      <div className="text-[10px] text-zinc-500">{currentDaySessions.length} slot hari ini</div>
+                    </div>
+                    <Calendar className="w-4 h-4 text-zinc-600" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadSessionCsvTemplate(course, scheduleDays);
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-blue-800 flex items-center justify-between cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-bold">Muat Turun Templat CSV</div>
+                      <div className="text-[10px] text-blue-600">Model lajur rasmi & contoh data</div>
+                    </div>
+                    <Download className="w-4 h-4 text-blue-600" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Import CSV Button */}
           <button
+            id="btn-schedule-import-csv"
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="px-3 py-2 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border-2 border-zinc-900 text-xs font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] transition-all cursor-pointer"
+            title="Import senarai slot daripada fail CSV mengikut model MyKursus"
+          >
+            <Upload className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Import CSV</span>
+          </button>
+
+          {/* Tambah Sesi Hari ini */}
+          <button
+            id="btn-schedule-add-session"
+            type="button"
             onClick={openAddSessionModal}
-            className="px-3.5 py-2 bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-800 border-2 border-zinc-900 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]"
+            className="px-3.5 py-2 bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-800 border-2 border-zinc-900 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>+ Tambah Sesi Hari {activeDayNumber}</span>
@@ -244,12 +361,22 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
           <p className="text-xs text-zinc-500 max-w-sm mx-auto mt-1 mb-4">
             Belum ada sesi ceramah, bengkel, atau slot rehat yang dimasukkan untuk Hari {activeDayNumber}.
           </p>
-          <button
-            onClick={openAddSessionModal}
-            className="px-4 py-2 bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-800"
-          >
-            + Tambah Sesi Pertama Hari Ini
-          </button>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <button
+              onClick={openAddSessionModal}
+              className="px-4 py-2 bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-800"
+            >
+              + Tambah Sesi Pertama Hari Ini
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Import Slot CSV</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -583,6 +710,17 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* CSV Import Modal */}
+      <ImportSessionCSVModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        course={course}
+        scheduleDays={scheduleDays}
+        sessions={sessions}
+        defaultDayNumber={activeDayNumber}
+        onCommitImport={handleCommitImportSessions}
+      />
     </div>
   );
 };

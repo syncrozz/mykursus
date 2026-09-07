@@ -1036,6 +1036,58 @@ class PlatformStorageRepository {
     }
   }
 
+  public bulkImportSessions(
+    courseId: string,
+    sessionsToImport: SessionItem[],
+    newDaysToCreate?: ScheduleDay[],
+    replaceDays?: number[],
+    user?: UserAuthContext
+  ): { importedCount: number; daysCreatedCount: number } {
+    if (user) {
+      const access = this.checkOrganizerCourseAccess(user, courseId);
+      if (!access.allowed) throw new Error(access.reason);
+    }
+
+    let daysCreatedCount = 0;
+    if (newDaysToCreate && newDaysToCreate.length > 0) {
+      const existingDays = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
+      newDaysToCreate.forEach(day => {
+        if (!existingDays.some(d => d.courseId === courseId && d.dayNumber === day.dayNumber)) {
+          existingDays.push(day);
+          daysCreatedCount++;
+        }
+      });
+      saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, existingDays);
+    }
+
+    let sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
+
+    if (replaceDays && replaceDays.length > 0) {
+      const replaceSet = new Set(replaceDays);
+      sessions = sessions.filter(s => !(s.courseId === courseId && replaceSet.has(s.dayNumber)));
+    }
+
+    sessionsToImport.forEach(newSess => {
+      sessions.push({
+        ...newSess,
+        courseId,
+        updatedAt: new Date().toISOString()
+      });
+    });
+
+    saveToStorage(STORAGE_KEYS.SESSIONS, sessions);
+
+    this.addAuditLog(
+      'IMPORT_CSV_SLOT',
+      `Import CSV Slot Jadual selesai: ${sessionsToImport.length} slot dimasukkan (${daysCreatedCount} hari baharu dicipta).`,
+      courseId,
+      undefined,
+      user?.role || UserRole.ORGANIZER_ADMIN
+    );
+
+    return { importedCount: sessionsToImport.length, daysCreatedCount };
+  }
+
   // --- Participant & Private Allocation Management (DCOREV1 Section 11 & 12) ---
   public saveParticipant(
     courseId: string, 

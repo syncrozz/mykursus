@@ -33,12 +33,14 @@ import { PublicCourseViewer } from './components/PublicCourseViewer';
 import { OrganizerWorkspace } from './components/Organizer/OrganizerWorkspace';
 import { ParticipantGateway } from './components/Participant/ParticipantGateway';
 import { SupportModal } from './components/Support/SupportModal';
-import { Compass } from 'lucide-react';
+import { Compass, Cloud } from 'lucide-react';
+import { testFirebaseConnection } from './services/firebase';
 
 export default function App() {
   // Global Mode: Organizer Workspace (Part 04) vs Master Admin (Part 03) vs Participant Experience (Part 05) vs Architecture Specs (Part 01-02)
   const [appMode, setAppMode] = useState<'organizer' | 'participant' | 'admin' | 'architecture'>('organizer');
   const [activeParticipantSlug, setActiveParticipantSlug] = useState<string>('');
+  const [isFirebaseOnline, setIsFirebaseOnline] = useState<boolean>(false);
 
   // Master Admin Sub-views: Dashboard | Courses | Organizers | Changes | Audit | Detail
   const [adminView, setAdminView] = useState<'dashboard' | 'courses' | 'organizers' | 'changes' | 'audit' | 'detail'>('dashboard');
@@ -77,6 +79,13 @@ export default function App() {
 
   useEffect(() => {
     reloadData();
+
+    // Verify Firebase connection on app boot
+    testFirebaseConnection().then(res => {
+      if (res.success) {
+        setIsFirebaseOnline(true);
+      }
+    });
 
     // Check if initial URL points to a public course slug
     const path = window.location.pathname;
@@ -302,6 +311,18 @@ export default function App() {
             <span className="hidden sm:inline">Seni Bina</span>
             <span>DCOREV1</span>
           </button>
+
+          {/* Firebase Status Badge */}
+          <div 
+            className="hidden sm:flex items-center gap-1.5 px-2 py-1 text-[11px] font-mono border-2 border-zinc-900 bg-amber-50 text-zinc-800"
+            title="Pangkalan Data Firebase Firestore Aktif (Projek: ultimate-quote-w40ks)"
+          >
+            <Cloud className={`w-3.5 h-3.5 ${isFirebaseOnline ? 'text-emerald-600' : 'text-amber-500'}`} />
+            <span className="font-bold text-[10px]">
+              {isFirebaseOnline ? 'Firebase: Sedia' : 'Firebase: Menyambung'}
+            </span>
+            <span className={`w-2 h-2 rounded-full ${isFirebaseOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
+          </div>
 
           {/* Lock / Unlock status indicator */}
           <button

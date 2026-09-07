@@ -1,0 +1,173 @@
+{
+  "entities": {
+    "Course": {
+      "title": "Course",
+      "description": "Kursus atau acara latihan dalam platform MyKursus",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "slug": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "subtitle": { "type": "string", "maxLength": 300 },
+        "code": { "type": "string", "maxLength": 50 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "instructions": { "type": "string", "maxLength": 3000 },
+        "organizerId": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["UPCOMING", "ACTIVE", "COMPLETED", "ARCHIVED"] },
+        "approvalStatus": { "type": "string", "enum": ["DRAFT", "CHANGES_REQUIRED", "SUBMITTED", "APPROVED", "REJECTED"] },
+        "startDate": { "type": "string", "maxLength": 20 },
+        "endDate": { "type": "string", "maxLength": 20 },
+        "venueName": { "type": "string", "maxLength": 200 },
+        "venueAddress": { "type": "string", "maxLength": 500 },
+        "timezone": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "slug", "title", "organizerId", "status", "approvalStatus", "startDate", "endDate", "venueName"]
+    },
+    "ScheduleDay": {
+      "title": "ScheduleDay",
+      "description": "Hari jadual bagi sesuatu kursus",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "courseId": { "type": "string", "maxLength": 100 },
+        "dayNumber": { "type": "number" },
+        "date": { "type": "string", "maxLength": 20 },
+        "theme": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["id", "courseId", "dayNumber", "date"]
+    },
+    "SessionItem": {
+      "title": "SessionItem",
+      "description": "Slot sesi latihan, ceramah, bengkel atau waktu rehat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "courseId": { "type": "string", "maxLength": 100 },
+        "dayNumber": { "type": "number" },
+        "sessionNumber": { "type": "number" },
+        "startTime": { "type": "string", "maxLength": 20 },
+        "endTime": { "type": "string", "maxLength": 20 },
+        "title": { "type": "string", "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "facilitatorName": { "type": "string", "maxLength": 200 },
+        "location": { "type": "string", "maxLength": 200 },
+        "isBreakOrMeal": { "type": "boolean" },
+        "presentationUrl": { "type": "string", "maxLength": 1000 },
+        "materialsNote": { "type": "string", "maxLength": 1000 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "courseId", "dayNumber", "sessionNumber", "startTime", "endTime", "title"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Pengumuman dan hebahan rasmi penganjur kepada peserta",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "courseId": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "content": { "type": "string", "maxLength": 3000 },
+        "priority": { "type": "string", "enum": ["NORMAL", "IMPORTANT", "URGENT", "CRITICAL"] },
+        "isPublic": { "type": "boolean" },
+        "publishedAt": { "type": "string", "maxLength": 50 },
+        "authorUserId": { "type": "string", "maxLength": 100 },
+        "authorName": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "enum": ["GENERAL", "SCHEDULE_CHANGE", "LOCATION_CHANGE", "RESOURCES", "URGENT"] },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "courseId", "title", "content", "priority", "publishedAt"]
+    },
+    "Participant": {
+      "title": "Participant",
+      "description": "Rekod peserta kursus",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "name": { "type": "string", "maxLength": 200 },
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "institutionOrAgency": { "type": "string", "maxLength": 200 },
+        "designation": { "type": "string", "maxLength": 200 },
+        "salaryNumber": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "phone", "institutionOrAgency"]
+    },
+    "CourseEnrollment": {
+      "title": "CourseEnrollment",
+      "description": "Penyertaan dan peruntukan khas peserta bagi sesebuah kursus",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "courseId": { "type": "string", "maxLength": 100 },
+        "participantId": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["REGISTERED", "CONFIRMED", "ATTENDING", "ABSENT", "COMPLETED", "WITHDRAWN", "CANCELLED", "ATTENDED"] },
+        "attendanceConfirmed": { "type": "boolean" },
+        "roomNumber": { "type": "string", "maxLength": 50 },
+        "roommateName": { "type": "string", "maxLength": 200 },
+        "assignedGroup": { "type": "string", "maxLength": 100 },
+        "specialRequirements": { "type": "string", "maxLength": 500 },
+        "secretariatNotes": { "type": "string", "maxLength": 1000 },
+        "salaryNumber": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "courseId", "participantId", "status"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Rekod kehadiran sesi atau harian peserta",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "courseId": { "type": "string", "maxLength": 100 },
+        "participantId": { "type": "string", "maxLength": 100 },
+        "enrollmentId": { "type": "string", "maxLength": 100 },
+        "attendanceLevel": { "type": "string", "enum": ["COURSE", "DAILY", "SESSION"] },
+        "dayNumber": { "type": "number" },
+        "date": { "type": "string", "maxLength": 20 },
+        "sessionId": { "type": "string", "maxLength": 100 },
+        "sessionNumber": { "type": "number" },
+        "status": { "type": "string", "enum": ["PRESENT", "ABSENT", "LATE", "EXCUSED"] },
+        "checkInMethod": { "type": "string", "enum": ["ORGANIZER_MANUAL", "SELF_CHECKIN", "QR_CODE"] },
+        "markedAt": { "type": "string", "maxLength": 50 },
+        "markedByUserId": { "type": "string", "maxLength": 100 },
+        "markedByUserName": { "type": "string", "maxLength": 200 },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "courseId", "participantId", "attendanceLevel", "status", "markedAt"]
+    }
+  },
+  "firestore": {
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Koleksi dokumen utama kursus"
+    },
+    "/courses/{courseId}/scheduleDays/{dayId}": {
+      "schema": "ScheduleDay",
+      "description": "Sub-koleksi hari jadual kursus"
+    },
+    "/courses/{courseId}/sessions/{sessionId}": {
+      "schema": "SessionItem",
+      "description": "Sub-koleksi slot sesi kursus"
+    },
+    "/courses/{courseId}/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Sub-koleksi pengumuman kursus"
+    },
+    "/courses/{courseId}/enrollments/{enrollmentId}": {
+      "schema": "CourseEnrollment",
+      "description": "Sub-koleksi pendaftaran dan peruntukan peserta kursus"
+    },
+    "/courses/{courseId}/attendances/{attendanceId}": {
+      "schema": "AttendanceRecord",
+      "description": "Sub-koleksi rekod kehadiran peserta kursus"
+    },
+    "/participants/{participantId}": {
+      "schema": "Participant",
+      "description": "Koleksi data induk peserta"
+    }
+  }
+}

@@ -232,6 +232,27 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     }
   };
 
+  const handleBulkImportSessions = (
+    sessionsToImport: SessionItem[], 
+    newDaysToCreate: ScheduleDay[], 
+    replaceExistingDays: number[]
+  ) => {
+    if (!activeCourse) return;
+    try {
+      const res = platformStorage.bulkImportSessions(
+        activeCourse.id,
+        sessionsToImport,
+        newDaysToCreate,
+        replaceExistingDays,
+        authContext
+      );
+      handleRefresh();
+      alert(`Berjaya mengimport ${res.importedCount} slot jadual!${res.daysCreatedCount > 0 ? ` (${res.daysCreatedCount} hari baharu ditambah)` : ''}`);
+    } catch (err: any) {
+      alert(`Ralat semasa import: ${err.message}`);
+    }
+  };
+
   // Announcement Actions
   const handleSaveAnnouncement = (ann: Announcement) => {
     if (!activeCourse) return;
@@ -426,6 +447,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onDeleteDay={handleDeleteDay}
           onSaveSession={handleSaveSession}
           onDeleteSession={handleDeleteSession}
+          onBulkImportSessions={handleBulkImportSessions}
           onSaveAnnouncement={handleSaveAnnouncement}
           onDeleteAnnouncement={handleDeleteAnnouncement}
           onSaveResource={handleSaveResource}

@@ -76,6 +76,7 @@ interface CourseWorkspaceProps {
   onDeleteDay: (dayId: string) => void;
   onSaveSession: (session: SessionItem) => void;
   onDeleteSession: (sessionId: string) => void;
+  onBulkImportSessions?: (sessionsToImport: SessionItem[], newDaysToCreate: ScheduleDay[], replaceExistingDays: number[]) => void;
   onSaveAnnouncement: (announcement: Announcement) => void;
   onDeleteAnnouncement: (id: string) => void;
   onSaveResource?: (resource: ResourceMaterial) => void;
@@ -112,6 +113,7 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
   onDeleteDay,
   onSaveSession,
   onDeleteSession,
+  onBulkImportSessions,
   onSaveAnnouncement,
   onDeleteAnnouncement,
   onSaveResource = () => {},
@@ -369,6 +371,7 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
           onDeleteDay={onDeleteDay}
           onSaveSession={onSaveSession}
           onDeleteSession={onDeleteSession}
+          onBulkImportSessions={onBulkImportSessions}
           onPublishAnnouncement={onSaveAnnouncement}
         />
       )}

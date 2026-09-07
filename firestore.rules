@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Kursus - boleh dibaca umum oleh peserta dan penganjur
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isSignedIn() || true; // Membenarkan mod demo & penganjur
+
+      match /scheduleDays/{dayId} {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      match /sessions/{sessionId} {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      match /announcements/{announcementId} {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      match /enrollments/{enrollmentId} {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      match /attendances/{attendanceId} {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      match /resources/{resourceId} {
+        allow read: if true;
+        allow write: if true;
+      }
+    }
+
+    match /participants/{participantId} {
+      allow read, write: if true;
+    }
+
+    match /organizers/{organizerId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if true;
+      allow create: if true;
+    }
+
+    // Endpoint untuk ujian sambungan Firestore
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
