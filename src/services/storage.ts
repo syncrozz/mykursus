@@ -325,6 +325,28 @@ class PlatformStorageRepository {
     return true;
   }
 
+  public bulkDeleteCourses(ids: string[]): number {
+    if (!ids || ids.length === 0) return 0;
+    const idSet = new Set(ids);
+    const courses = this.getCourses();
+    const toDelete = courses.filter(c => idSet.has(c.id));
+    if (toDelete.length === 0) return 0;
+
+    const remaining = courses.filter(c => !idSet.has(c.id));
+    saveToStorage(STORAGE_KEYS.COURSES, remaining);
+
+    // Clean cascading enrollments
+    const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+    saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments.filter(e => !idSet.has(e.courseId)));
+
+    // Clean cascading change requests
+    const crs = this.getChangeRequests();
+    saveToStorage(STORAGE_KEYS.CHANGE_REQUESTS, crs.filter(cr => !idSet.has(cr.courseId)));
+
+    this.addAuditLog('COURSE_DELETED', `${toDelete.length} kursus dipadam secara pukal mengikut DCOREV1.`, undefined, ids.join(', '));
+    return toDelete.length;
+  }
+
   // --- Governance & Approval Actions ---
   public approveCourse(courseId: string, reviewNotes?: string): Course {
     const course = this.getCourseById(courseId);
@@ -1505,6 +1527,44 @@ class PlatformStorageRepository {
       const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
       saveToStorage(STORAGE_KEYS.PARTICIPANTS, participants.filter(p => p.id !== participantId));
     }
+  }
+
+  public bulkDeleteParticipantsFromCourse(
+    courseId: string, 
+    participantIds: string[], 
+    user?: UserAuthContext
+  ): number {
+    if (!participantIds || participantIds.length === 0) return 0;
+    if (user) {
+      const access = this.checkOrganizerCourseAccess(user, courseId);
+      if (!access.allowed) throw new Error(access.reason);
+    }
+
+    const idSet = new Set(participantIds);
+    const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+    const targetEnrs = enrollments.filter(e => e.courseId === courseId && idSet.has(e.participantId));
+    if (targetEnrs.length === 0) return 0;
+
+    const filteredEnrs = enrollments.filter(e => !(e.courseId === courseId && idSet.has(e.participantId)));
+    saveToStorage(STORAGE_KEYS.ENROLLMENTS, filteredEnrs);
+
+    // Sync deletion to Firestore
+    for (const enr of targetEnrs) {
+      deleteEnrollmentFromFirestore(courseId, enr.id).catch(err => console.warn('Firestore bulk delete enrollment error:', err));
+    }
+
+    // Clean participants who have no other remaining enrollments in any course
+    const allRemainingEnrs = filteredEnrs;
+    const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
+    const cleanedParticipants = participants.filter(p => {
+      if (!idSet.has(p.id)) return true;
+      const hasOther = allRemainingEnrs.some(e => e.participantId === p.id);
+      return hasOther;
+    });
+    saveToStorage(STORAGE_KEYS.PARTICIPANTS, cleanedParticipants);
+
+    this.addAuditLog('PARTICIPANT_BULK_DELETED', `${targetEnrs.length} peserta dipadam secara pukal mengikut DCOREV1 ("Deleted means Deleted").`, courseId);
+    return targetEnrs.length;
   }
 
   /**

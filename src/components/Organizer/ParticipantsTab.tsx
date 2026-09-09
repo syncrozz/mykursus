@@ -33,6 +33,7 @@ interface ParticipantsTabProps {
   enrollments: Array<{ participant: Participant; enrollment: CourseEnrollment }>;
   onSaveParticipant: (participantData: Partial<Participant>, enrollmentData: Partial<CourseEnrollment>) => void;
   onDeleteParticipant: (participantId: string) => void;
+  onBulkDeleteParticipants?: (participantIds: string[]) => void;
   onUpdateAllocations: (enrollmentId: string, allocations: Partial<CourseEnrollment>) => void;
   onBulkImportParticipants?: (rows: Array<{ participant: Partial<Participant>; enrollment: Partial<CourseEnrollment> }>) => void;
   onRestoreBackup?: (payload: any) => void;
@@ -43,12 +44,21 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
   enrollments,
   onSaveParticipant,
   onDeleteParticipant,
+  onBulkDeleteParticipants,
   onUpdateAllocations,
   onBulkImportParticipants,
   onRestoreBackup,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'CONFIRMED' | 'REGISTERED' | 'ATTENDED'>('ALL');
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    participantIds: string[];
+    title: string;
+    count: number;
+    namesPreview: string[];
+  } | null>(null);
 
   // Data Safety Modal states
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
@@ -220,6 +230,60 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
     return true;
   });
 
+  // Selection Handlers
+  const handleToggleParticipant = (id: string) => {
+    setSelectedParticipantIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedParticipantIds.length === filteredEnrollments.length && filteredEnrollments.length > 0) {
+      setSelectedParticipantIds([]);
+    } else {
+      setSelectedParticipantIds(filteredEnrollments.map(e => e.participant.id));
+    }
+  };
+
+  const handleSelectAllToDelete = () => {
+    if (filteredEnrollments.length === 0) return;
+    const allIds = filteredEnrollments.map(e => e.participant.id);
+    setSelectedParticipantIds(allIds);
+    setDeleteModalState({
+      isOpen: true,
+      participantIds: allIds,
+      title: `Padam Semua (${allIds.length}) Peserta Tersenarai`,
+      count: allIds.length,
+      namesPreview: filteredEnrollments.slice(0, 8).map(e => e.participant.name),
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedParticipantIds.length === 0) return;
+    const count = selectedParticipantIds.length;
+    const selectedRows = filteredEnrollments.filter(e => selectedParticipantIds.includes(e.participant.id));
+    setDeleteModalState({
+      isOpen: true,
+      participantIds: [...selectedParticipantIds],
+      title: `Padam (${count}) Peserta Dipilih`,
+      count: count,
+      namesPreview: selectedRows.slice(0, 8).map(e => e.participant.name),
+    });
+  };
+
+  const handleConfirmDeleteParticipants = () => {
+    if (!deleteModalState || deleteModalState.participantIds.length === 0) return;
+    const ids = deleteModalState.participantIds;
+    if (onBulkDeleteParticipants) {
+      onBulkDeleteParticipants(ids);
+    } else {
+      ids.forEach(id => onDeleteParticipant(id));
+    }
+    setSelectedParticipantIds(prev => prev.filter(id => !ids.includes(id)));
+    setDeleteModalState(null);
+    showToast(`✓ Sebanyak ${ids.length} peserta telah dipadam mengikut DCOREV1.`);
+  };
+
   return (
     <div className="space-y-4">
       {/* Toast Notification Banner */}
@@ -274,7 +338,7 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
             <span>Eksport CSV</span>
           </button>
 
-          {/* MIDDLE: Relevant Actions (Backup Data, Audit Duplikasi, + Tambah Peserta) */}
+          {/* MIDDLE: Relevant Actions (Backup Data, Audit Duplikasi, + Tambah Peserta, Pilih Semua untuk Padam) */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               id="btn-backup-data"
@@ -311,6 +375,18 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
             >
               <UserPlus className="w-4 h-4" />
               <span>+ Tambah Peserta</span>
+            </button>
+
+            <button
+              id="btn-participants-select-all-delete"
+              type="button"
+              onClick={handleSelectAllToDelete}
+              disabled={filteredEnrollments.length === 0}
+              className="px-3 py-2 bg-red-50 hover:bg-red-100 border-2 border-red-600 text-red-900 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(220,38,38,1)] transition-all cursor-pointer disabled:opacity-50"
+              title="Pilih semua peserta dan padam secara pukal mengikut DCOREV1"
+            >
+              <Trash2 className="w-4 h-4 text-red-600" />
+              <span>Pilih Semua untuk Padam</span>
             </button>
           </div>
 
@@ -359,6 +435,41 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
         </div>
       </div>
 
+      {/* Active Selection Banner */}
+      {selectedParticipantIds.length > 0 && (
+        <div className="bg-red-50/90 border-2 border-red-600 p-3 flex flex-wrap items-center justify-between gap-3 shadow-[2px_2px_0px_0px_rgba(220,38,38,1)] animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 text-xs font-bold text-red-950">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
+            <span>{selectedParticipantIds.length} daripada {filteredEnrollments.length} peserta dipilih</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedParticipantIds(filteredEnrollments.map(e => e.participant.id))}
+              className="px-2.5 py-1 text-xs font-bold text-zinc-800 bg-white border border-zinc-300 hover:bg-zinc-100 cursor-pointer"
+            >
+              Pilih Semua ({filteredEnrollments.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedParticipantIds([])}
+              className="px-2.5 py-1 text-xs font-bold text-zinc-600 hover:text-zinc-950 cursor-pointer"
+            >
+              Batal Pilihan
+            </button>
+            <button
+              id="btn-delete-selected-participants"
+              type="button"
+              onClick={handleDeleteSelected}
+              className="px-3.5 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border border-red-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Padam ({selectedParticipantIds.length}) Peserta Dipilih</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Participants Table or Empty State */}
       {filteredEnrollments.length === 0 ? (
         <div className="bg-white border-2 border-zinc-900 p-8 text-center shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]">
@@ -383,7 +494,17 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
           <table className="w-full text-left text-xs">
             <thead className="bg-zinc-900 text-white font-mono text-[11px] uppercase border-b-2 border-zinc-900">
               <tr>
-                <th className="p-3">#</th>
+                <th className="p-3 w-12 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={filteredEnrollments.length > 0 && selectedParticipantIds.length === filteredEnrollments.length}
+                      onChange={handleToggleSelectAll}
+                      className="w-4 h-4 text-zinc-900 border-zinc-400 rounded-none cursor-pointer focus:ring-0"
+                      title={selectedParticipantIds.length === filteredEnrollments.length ? 'Nyahpilih semua' : 'Pilih semua'}
+                    />
+                  </div>
+                </th>
                 <th className="p-3">Nama Peserta / Jawatan</th>
                 <th className="p-3">No. Telefon & Emel</th>
                 <th className="p-3">Institusi / Cawangan</th>
@@ -395,8 +516,24 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
             </thead>
             <tbody className="divide-y divide-zinc-200 font-sans">
               {filteredEnrollments.map(({ participant, enrollment }, idx) => (
-                <tr key={participant.id} className="hover:bg-zinc-50 transition-colors">
-                  <td className="p-3 font-mono text-zinc-500">{idx + 1}</td>
+                <tr 
+                  key={participant.id} 
+                  className={`hover:bg-zinc-50 transition-colors ${
+                    selectedParticipantIds.includes(participant.id) ? 'bg-red-50/40' : ''
+                  }`}
+                >
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedParticipantIds.includes(participant.id)}
+                        onChange={() => handleToggleParticipant(participant.id)}
+                        className="w-4 h-4 text-zinc-900 border-zinc-400 rounded-none cursor-pointer focus:ring-0"
+                        title={`Pilih ${participant.name}`}
+                      />
+                      <span className="font-mono text-zinc-500 text-[11px]">{idx + 1}</span>
+                    </div>
+                  </td>
                   <td className="p-3">
                     <div className="font-bold text-zinc-900">{participant.name}</div>
                     {participant.designation && (
@@ -459,11 +596,15 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Adakah anda pasti untuk memadam ${participant.name} dari kursus ini?`)) {
-                          onDeleteParticipant(participant.id);
-                        }
+                        setDeleteModalState({
+                          isOpen: true,
+                          participantIds: [participant.id],
+                          title: `Padam Peserta "${participant.name}"`,
+                          count: 1,
+                          namesPreview: [participant.name],
+                        });
                       }}
-                      className="p-1 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      className="p-1 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
                       title="Padam Peserta (Deleted means Deleted)"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -760,6 +901,72 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
         onEditParticipant={openEditModal}
         onDeleteParticipant={onDeleteParticipant}
       />
+
+      {/* In-App Delete Confirmation Modal (Bypasses iframe sandbox restrictions) */}
+      {deleteModalState?.isOpen && (
+        <div 
+          id="modal-confirm-delete-participants"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setDeleteModalState(null)}
+        >
+          <div 
+            className="bg-white border-2 border-zinc-900 shadow-[6px_6px_0px_0px_rgba(220,38,38,1)] max-w-md w-full p-5 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-red-100 border-2 border-red-600 text-red-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="text-base font-black text-zinc-900 leading-tight">
+                  {deleteModalState.title}
+                </h3>
+                <p className="text-[10px] font-mono font-bold text-red-700 uppercase tracking-wider">
+                  DCOREV1: Deleted Means Deleted
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600 leading-relaxed">
+              Adakah anda pasti mahu memadam <strong>{deleteModalState.count}</strong> peserta ini secara kekal dari kursus ini? Rekod pendaftaran, status kehadiran, dan peruntukan bilik/kumpulan akan dipadam sepenuhnya. Tindakan ini tidak boleh diundur.
+            </p>
+
+            {/* List preview of names */}
+            <div className="max-h-36 overflow-y-auto border border-zinc-200 bg-zinc-50 p-2 text-[11px] font-mono divide-y divide-zinc-200">
+              {deleteModalState.namesPreview.map((pName, i) => (
+                <div key={i} className="py-1 flex items-center justify-between gap-2">
+                  <span className="font-bold text-zinc-800 truncate">{pName}</span>
+                </div>
+              ))}
+              {deleteModalState.count > deleteModalState.namesPreview.length && (
+                <div className="py-1 text-zinc-500 italic text-[10px]">
+                  ... dan {deleteModalState.count - deleteModalState.namesPreview.length} peserta lain
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200">
+              <button
+                id="btn-cancel-delete-participants"
+                type="button"
+                onClick={() => setDeleteModalState(null)}
+                className="px-3.5 py-2 text-xs font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border border-zinc-300 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                id="btn-confirm-delete-participants-execute"
+                type="button"
+                onClick={handleConfirmDeleteParticipants}
+                className="px-4 py-2 text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 border-2 border-red-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer active:translate-y-0.5 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Sahkan & Padam</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

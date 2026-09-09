@@ -15,7 +15,10 @@ import {
   ExternalLink,
   Layers,
   Search,
-  Filter
+  Filter,
+  Trash2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { 
   Course, 
@@ -32,6 +35,8 @@ interface OrganizerDashboardProps {
   onOpenCreateModal: () => void;
   onOpenPublicPreview: (course: Course) => void;
   onLoadPilot: () => void;
+  onDeleteCourse?: (courseId: string) => void;
+  onBulkDeleteCourses?: (courseIds: string[]) => void;
 }
 
 export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
@@ -42,9 +47,18 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
   onOpenCreateModal,
   onOpenPublicPreview,
   onLoadPilot,
+  onDeleteCourse,
+  onBulkDeleteCourses,
 }) => {
   const [filterTab, setFilterTab] = useState<'ALL' | 'ACTION_REQUIRED' | 'DRAFT' | 'APPROVED' | 'COMPLETED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    courseIds: string[];
+    title: string;
+    count: number;
+  } | null>(null);
 
   // Filter courses strictly for this organizer
   const orgId = currentOrganizer?.id;
@@ -87,6 +101,55 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
   const completedCount = organizerCourses.filter(c => c.status === CourseStatus.COMPLETED).length;
 
   const actionRequiredCount = pendingCount + changesReqCount;
+
+  // Selection handlers
+  const toggleCourseSelection = (courseId: string) => {
+    setSelectedCourseIds(prev => 
+      prev.includes(courseId) ? prev.filter(id => id !== courseId) : [...prev, courseId]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedCourseIds.length === filteredCourses.length && filteredCourses.length > 0) {
+      setSelectedCourseIds([]);
+    } else {
+      setSelectedCourseIds(filteredCourses.map(c => c.id));
+    }
+  };
+
+  const handleSelectAllToDelete = () => {
+    if (filteredCourses.length === 0) return;
+    const allFilteredIds = filteredCourses.map(c => c.id);
+    setSelectedCourseIds(allFilteredIds);
+    setDeleteModal({
+      isOpen: true,
+      courseIds: allFilteredIds,
+      title: `Padam Semua (${allFilteredIds.length}) Kursus Tersenarai`,
+      count: allFilteredIds.length,
+    });
+  };
+
+  const handleBulkDeleteSelected = () => {
+    if (selectedCourseIds.length === 0) return;
+    setDeleteModal({
+      isOpen: true,
+      courseIds: [...selectedCourseIds],
+      title: `Padam (${selectedCourseIds.length}) Kursus Dipilih`,
+      count: selectedCourseIds.length,
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteModal || deleteModal.courseIds.length === 0) return;
+    const targetIds = deleteModal.courseIds;
+    if (onBulkDeleteCourses) {
+      onBulkDeleteCourses(targetIds);
+    } else if (onDeleteCourse) {
+      targetIds.forEach(id => onDeleteCourse(id));
+    }
+    setSelectedCourseIds(prev => prev.filter(id => !targetIds.includes(id)));
+    setDeleteModal(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -219,18 +282,85 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
           </button>
         </div>
 
-        {/* Search input */}
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari tajuk, kod, lokasi..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs border border-zinc-300 focus:outline-hidden focus:border-zinc-900"
-          />
+        {/* Search input & Bulk Action buttons */}
+        <div className="flex items-center gap-2 flex-wrap flex-1 justify-end">
+          <div className="relative min-w-[180px] max-w-xs flex-1">
+            <Search className="w-4 h-4 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari tajuk, kod, lokasi..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs border border-zinc-300 focus:outline-hidden focus:border-zinc-900"
+            />
+          </div>
+
+          {filteredCourses.length > 0 && (
+            <>
+              <button
+                id="btn-organizer-select-all"
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="px-2.5 py-1.5 text-xs font-bold border border-zinc-900 bg-zinc-50 hover:bg-zinc-100 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+                title="Pilih Semua Kursus"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-zinc-700" />
+                <span>
+                  {selectedCourseIds.length === filteredCourses.length
+                    ? 'Nyahpilih'
+                    : 'Pilih Semua'}
+                </span>
+              </button>
+
+              <button
+                id="btn-organizer-select-all-delete"
+                type="button"
+                onClick={handleSelectAllToDelete}
+                className="px-3 py-1.5 text-xs font-black uppercase tracking-wider border-2 border-red-600 bg-red-50 hover:bg-red-100 text-red-900 flex items-center gap-1.5 shadow-[1px_1px_0px_0px_rgba(220,38,38,1)] cursor-pointer whitespace-nowrap transition-all"
+                title="Pilih Semua Kursus dan Padam"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                <span>Pilih Semua untuk Padam</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Active Selection Banner */}
+      {selectedCourseIds.length > 0 && (
+        <div className="bg-red-50/90 border-2 border-red-600 p-3 flex flex-wrap items-center justify-between gap-3 shadow-[2px_2px_0px_0px_rgba(220,38,38,1)] animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 text-xs font-bold text-red-950">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
+            <span>{selectedCourseIds.length} daripada {filteredCourses.length} kursus dipilih</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedCourseIds(filteredCourses.map(c => c.id))}
+              className="px-2.5 py-1 text-xs font-bold text-zinc-800 bg-white border border-zinc-300 hover:bg-zinc-100 cursor-pointer"
+            >
+              Pilih Semua ({filteredCourses.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCourseIds([])}
+              className="px-2.5 py-1 text-xs font-bold text-zinc-600 hover:text-zinc-950 cursor-pointer"
+            >
+              Batal Pilihan
+            </button>
+            <button
+              id="btn-organizer-delete-selected"
+              type="button"
+              onClick={handleBulkDeleteSelected}
+              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border-2 border-red-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer select-none active:translate-y-0.5 transition-all"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Padam ({selectedCourseIds.length}) Kursus Dipilih</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Courses List or Empty State */}
       {filteredCourses.length === 0 ? (
@@ -292,25 +422,37 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
                 {/* Card Top / Header */}
                 <div className="p-4 sm:p-5 border-b border-zinc-200 space-y-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {course.code && (
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-zinc-100 text-zinc-800 border border-zinc-300">
-                            {course.code}
+                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedCourseIds.includes(course.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleCourseSelection(course.id);
+                        }}
+                        className="mt-1 w-4 h-4 text-zinc-900 border-2 border-zinc-900 rounded-none cursor-pointer focus:ring-0 shrink-0"
+                        title="Pilih kursus ini untuk tindakan pukal"
+                      />
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {course.code && (
+                            <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-zinc-100 text-zinc-800 border border-zinc-300">
+                              {course.code}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 font-semibold truncate max-w-[200px]">
+                            /course/{course.slug}
                           </span>
+                        </div>
+                        <h3 className="text-base sm:text-lg font-black text-zinc-900 leading-snug">
+                          {course.title}
+                        </h3>
+                        {course.subtitle && (
+                          <p className="text-xs text-zinc-600 font-medium">
+                            {course.subtitle}
+                          </p>
                         )}
-                        <span className="text-[10px] font-mono px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 font-semibold truncate max-w-[200px]">
-                          /course/{course.slug}
-                        </span>
                       </div>
-                      <h3 className="text-base sm:text-lg font-black text-zinc-900 leading-snug">
-                        {course.title}
-                      </h3>
-                      {course.subtitle && (
-                        <p className="text-xs text-zinc-600 font-medium">
-                          {course.subtitle}
-                        </p>
-                      )}
                     </div>
 
                     {/* Status badges */}
@@ -401,19 +543,38 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
                 </div>
 
                 {/* Bottom Card Actions */}
-                <div className="p-3 bg-zinc-50 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => onOpenPublicPreview(course)}
-                    className="px-3 py-1.5 text-xs font-bold text-zinc-700 hover:text-zinc-950 hover:bg-zinc-200 border border-zinc-300 flex items-center gap-1.5 transition-all"
-                    title="Uji Paparan Awam Peserta (Option A)"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-zinc-600" />
-                    <span>Pratonton Awam</span>
-                  </button>
+                <div className="p-3 bg-zinc-50 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => onOpenPublicPreview(course)}
+                      className="px-3 py-1.5 text-xs font-bold text-zinc-700 hover:text-zinc-950 hover:bg-zinc-200 border border-zinc-300 flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Uji Paparan Awam Peserta (Option A)"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>Pratonton Awam</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteModal({
+                          isOpen: true,
+                          courseIds: [course.id],
+                          title: `Padam Kursus "${course.title}"`,
+                          count: 1,
+                        });
+                      }}
+                      className="p-1.5 text-zinc-500 hover:text-red-700 hover:bg-red-50 border border-zinc-300 hover:border-red-400 transition-all cursor-pointer"
+                      title="Padam Kursus Ini (DCOREV1)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
                   <button
                     onClick={() => onSelectCourse(course)}
-                    className="px-4 py-1.5 text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 border-2 border-zinc-900 flex items-center gap-1.5 shadow-[1px_1px_0px_0px_rgba(24,24,27,1)] transition-all"
+                    className="px-4 py-1.5 text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 border-2 border-zinc-900 flex items-center gap-1.5 shadow-[1px_1px_0px_0px_rgba(24,24,27,1)] transition-all cursor-pointer"
                   >
                     <span>Buka Workspace Kursus</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -422,6 +583,68 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* In-App Delete Confirmation Modal (Bypasses iframe sandbox restrictions) */}
+      {deleteModal?.isOpen && (
+        <div 
+          id="modal-confirm-delete-course"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setDeleteModal(null)}
+        >
+          <div 
+            className="bg-white border-2 border-zinc-900 shadow-[6px_6px_0px_0px_rgba(220,38,38,1)] max-w-md w-full p-5 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-red-100 border-2 border-red-600 text-red-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="text-base font-black text-zinc-900 leading-tight">
+                  {deleteModal.title}
+                </h3>
+                <p className="text-[10px] font-mono font-bold text-red-700 uppercase tracking-wider">
+                  DCOREV1: Deleted Means Deleted
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600 leading-relaxed">
+              Adakah anda pasti mahu memadam <strong>{deleteModal.count}</strong> kursus ini secara kekal dari pangkalan data? Semua data berkaitan termasuk pendaftaran peserta dan rekod operasi akan dipadam sepenuhnya. Tindakan ini tidak boleh diundur.
+            </p>
+
+            {/* List preview */}
+            <div className="max-h-36 overflow-y-auto border border-zinc-200 bg-zinc-50 p-2 text-[11px] font-mono divide-y divide-zinc-200">
+              {courses.filter(c => deleteModal.courseIds.includes(c.id)).map(c => (
+                <div key={c.id} className="py-1 flex items-center justify-between gap-2">
+                  <span className="font-bold text-zinc-800 truncate">{c.title}</span>
+                  {c.code && <span className="text-zinc-500 text-[10px] shrink-0">{c.code}</span>}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200">
+              <button
+                id="btn-cancel-delete-course"
+                type="button"
+                onClick={() => setDeleteModal(null)}
+                className="px-3.5 py-2 text-xs font-bold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 border border-zinc-300 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                id="btn-confirm-delete-course-execute"
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 active:bg-red-800 border-2 border-red-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] cursor-pointer active:translate-y-0.5 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Ya, Sahkan & Padam</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

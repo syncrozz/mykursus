@@ -188,6 +188,38 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     }
   };
 
+  const handleBulkDeleteParticipants = (participantIds: string[]) => {
+    if (!activeCourse || !participantIds || participantIds.length === 0) return;
+    try {
+      const count = platformStorage.bulkDeleteParticipantsFromCourse(activeCourse.id, participantIds, authContext);
+      handleRefresh();
+      showFeedback(`✓ Sebanyak ${count} peserta berjaya dipadam dari kursus.`);
+    } catch (err: any) {
+      showFeedback(err.message, 'error');
+    }
+  };
+
+  const handleDeleteCourse = (courseId: string) => {
+    try {
+      platformStorage.deleteCourse(courseId);
+      handleRefresh();
+      showFeedback('✓ Kursus telah dipadam secara kekal.');
+    } catch (err: any) {
+      showFeedback(err.message, 'error');
+    }
+  };
+
+  const handleBulkDeleteCourses = (courseIds: string[]) => {
+    if (!courseIds || courseIds.length === 0) return;
+    try {
+      const count = platformStorage.bulkDeleteCourses(courseIds);
+      handleRefresh();
+      showFeedback(`✓ Sebanyak ${count} kursus berjaya dipadam.`);
+    } catch (err: any) {
+      showFeedback(err.message, 'error');
+    }
+  };
+
   const handleUpdateAllocations = (enrollmentId: string, allocations: Partial<CourseEnrollment>) => {
     if (!activeCourse) return;
     try {
@@ -489,6 +521,8 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
             if (onOpenPublicPreview) onOpenPublicPreview(course);
           }}
           onLoadPilot={handleLoadPilot}
+          onDeleteCourse={handleDeleteCourse}
+          onBulkDeleteCourses={handleBulkDeleteCourses}
         />
       ) : (
         <CourseWorkspace
@@ -508,6 +542,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onRequestOfficialChange={handleRequestOfficialChange}
           onSaveParticipant={handleSaveParticipant}
           onDeleteParticipant={handleDeleteParticipant}
+          onBulkDeleteParticipants={handleBulkDeleteParticipants}
           onUpdateAllocations={handleUpdateAllocations}
           onBulkImportParticipants={handleBulkImportParticipants}
           onRestoreBackup={handleRestoreBackup}
