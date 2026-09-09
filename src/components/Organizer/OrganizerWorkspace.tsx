@@ -27,11 +27,13 @@ import { AccessDeniedNotice } from './AccessDeniedNotice';
 interface OrganizerWorkspaceProps {
   onSwitchToMasterAdmin?: () => void;
   onOpenPublicPreview?: (course: Course) => void;
+  onLockOrganizer?: () => void;
 }
 
 export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onSwitchToMasterAdmin,
   onOpenPublicPreview,
+  onLockOrganizer,
 }) => {
   // Organizers available on platform
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
@@ -437,6 +439,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onSwitchRole={setCurrentRole}
           onOpenCreateCourse={() => setShowCreateModal(true)}
           totalCoursesCount={organizerCourses.length}
+          onLockOrganizer={onLockOrganizer}
         />
         <AccessDeniedNotice
           reason="Anda sedang mensimulasikan peranan Peserta (PARTICIPANT). Peserta hanya mempunyai akses paparan awam melalui URL slug Option A, dan tidak dibenarkan mengakses pengurusan operasi kursus."
@@ -458,6 +461,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onSwitchRole={setCurrentRole}
           onOpenCreateCourse={() => setShowCreateModal(true)}
           totalCoursesCount={organizerCourses.length}
+          onLockOrganizer={onLockOrganizer}
         />
         <AccessDeniedNotice
           reason={`Kursus "${activeCourse.title}" dimiliki oleh organisasi lain (${activeCourse.organizerId}). Mengikut prinsip pemintalan penyewa (multi-tenant isolation) DCOREV1, anda tidak mempunyai hak akses.`}
@@ -507,6 +511,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         onSwitchRole={setCurrentRole}
         onOpenCreateCourse={() => setShowCreateModal(true)}
         totalCoursesCount={organizerCourses.length}
+        onLockOrganizer={onLockOrganizer}
       />
 
       {/* Main Workspace View: Dashboard vs Individual Course */}

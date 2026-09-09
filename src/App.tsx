@@ -31,6 +31,8 @@ import { AuthModal } from './components/MasterAdmin/AuthModal';
 import { ArchitectureViewer } from './components/ArchitectureViewer';
 import { PublicCourseViewer } from './components/PublicCourseViewer';
 import { OrganizerWorkspace } from './components/Organizer/OrganizerWorkspace';
+import { OrganizerAuthModal } from './components/Organizer/OrganizerAuthModal';
+import { OrganizerLockedGate } from './components/Organizer/OrganizerLockedGate';
 import { ParticipantGateway } from './components/Participant/ParticipantGateway';
 import { SupportModal } from './components/Support/SupportModal';
 import { Compass, Cloud } from 'lucide-react';
@@ -48,9 +50,63 @@ export default function App() {
   const [initialCourseApprovalFilter, setInitialCourseApprovalFilter] = useState<ApprovalStatus | undefined>(undefined);
 
   // Security & Authentication State
-  const [isMasterAdminUnlocked, setIsMasterAdminUnlocked] = useState<boolean>(true); // Default open in sandbox, can lock to test PIN 5313
+  const [isMasterAdminUnlocked, setIsMasterAdminUnlocked] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('mykursus_master_admin_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [isOrganizerUnlocked, setIsOrganizerUnlocked] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('mykursus_organizer_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [showOrganizerAuthModal, setShowOrganizerAuthModal] = useState<boolean>(false);
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.MASTER_ADMIN);
+
+  const handleUnlockMasterAdmin = () => {
+    setIsMasterAdminUnlocked(true);
+    try {
+      sessionStorage.setItem('mykursus_master_admin_unlocked', 'true');
+    } catch {
+      // ignore
+    }
+    setShowAuthModal(false);
+    setAppMode('admin');
+  };
+
+  const handleLockMasterAdmin = () => {
+    setIsMasterAdminUnlocked(false);
+    try {
+      sessionStorage.removeItem('mykursus_master_admin_unlocked');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleUnlockOrganizer = () => {
+    setIsOrganizerUnlocked(true);
+    try {
+      sessionStorage.setItem('mykursus_organizer_unlocked', 'true');
+    } catch {
+      // ignore
+    }
+    setShowOrganizerAuthModal(false);
+    setAppMode('organizer');
+  };
+
+  const handleLockOrganizer = () => {
+    setIsOrganizerUnlocked(false);
+    try {
+      sessionStorage.removeItem('mykursus_organizer_unlocked');
+    } catch {
+      // ignore
+    }
+  };
 
   // Public Course Preview State (Option A)
   const [previewCourse, setPreviewCourse] = useState<Course | null>(null);
@@ -266,8 +322,15 @@ export default function App() {
 
           {/* Organizer Workspace (Part 04) */}
           <button
-            onClick={() => setAppMode('organizer')}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 ${
+            id="nav-btn-organizer"
+            onClick={() => {
+              if (!isOrganizerUnlocked) {
+                setShowOrganizerAuthModal(true);
+              } else {
+                setAppMode('organizer');
+              }
+            }}
+            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
               appMode === 'organizer'
                 ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
                 : 'bg-white text-zinc-800 border-zinc-900 hover:bg-zinc-100'
@@ -275,10 +338,14 @@ export default function App() {
           >
             <BookOpen className="w-4 h-4 text-emerald-400" />
             <span>Ruang Penganjur</span>
+            {!isOrganizerUnlocked && (
+              <Lock className="w-3 h-3 text-amber-500" title="Akses Dilindungi PIN 1234" />
+            )}
           </button>
 
           {/* Master Admin Mode Switcher */}
           <button
+            id="nav-btn-master-admin"
             onClick={() => {
               if (!isMasterAdminUnlocked) {
                 setShowAuthModal(true);
@@ -286,7 +353,7 @@ export default function App() {
                 setAppMode('admin');
               }
             }}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
               appMode === 'admin'
                 ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
                 : 'bg-white text-zinc-800 border-zinc-900 hover:bg-zinc-100'
@@ -294,6 +361,9 @@ export default function App() {
           >
             <ShieldCheck className="w-4 h-4 text-blue-400" />
             <span>Master Admin</span>
+            {!isMasterAdminUnlocked && (
+              <Lock className="w-3 h-3 text-red-500" title="Akses Dilindungi PIN Keselamatan" />
+            )}
             {pendingApprovalCount > 0 && (
               <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
             )}
@@ -324,20 +394,40 @@ export default function App() {
             <span className={`w-2 h-2 rounded-full ${isFirebaseOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
           </div>
 
-          {/* Lock / Unlock status indicator */}
+          {/* Organizer Lock / Unlock indicator */}
           <button
+            id="btn-nav-lock-organizer"
+            onClick={() => {
+              if (isOrganizerUnlocked) {
+                handleLockOrganizer();
+                alert('Ruang Penganjur telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
+              } else {
+                setShowOrganizerAuthModal(true);
+              }
+            }}
+            title={isOrganizerUnlocked ? 'Kunci Ruang Penganjur' : 'Buka Kunci Ruang Penganjur'}
+            className={`p-1.5 border-2 border-zinc-900 transition-colors cursor-pointer ${
+              isOrganizerUnlocked ? 'bg-emerald-50 hover:bg-red-50 text-emerald-700 hover:text-red-700' : 'bg-zinc-100 hover:bg-zinc-200 text-amber-600'
+            }`}
+          >
+            {isOrganizerUnlocked ? <Unlock className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4 text-amber-600" />}
+          </button>
+
+          {/* Master Admin Lock / Unlock status indicator */}
+          <button
+            id="btn-nav-lock-admin"
             onClick={() => {
               if (isMasterAdminUnlocked) {
-                setIsMasterAdminUnlocked(false);
-                alert('Master Admin telah dikunci. Sila masukkan PIN 5313 untuk membuka semula.');
+                handleLockMasterAdmin();
+                alert('Master Admin telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
               } else {
                 setShowAuthModal(true);
               }
             }}
             title={isMasterAdminUnlocked ? 'Kunci Master Admin' : 'Buka Kunci Master Admin'}
-            className="p-1.5 bg-zinc-100 hover:bg-zinc-200 border-2 border-zinc-900 text-zinc-700"
+            className="p-1.5 bg-zinc-100 hover:bg-zinc-200 border-2 border-zinc-900 text-zinc-700 cursor-pointer"
           >
-            {isMasterAdminUnlocked ? <Unlock className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4 text-red-600" />}
+            {isMasterAdminUnlocked ? <Unlock className="w-4 h-4 text-blue-600" /> : <Lock className="w-4 h-4 text-red-600" />}
           </button>
         </div>
       </header>
@@ -347,44 +437,67 @@ export default function App() {
         /* Participant Experience (PART 05) */
         <ParticipantGateway
           initialSlug={activeParticipantSlug || (courses.length > 0 ? courses[0].slug : undefined)}
-          onNavigateToOrganizer={() => setAppMode('organizer')}
-          onNavigateToAdmin={() => setAppMode('admin')}
+          onNavigateToOrganizer={() => {
+            if (!isOrganizerUnlocked) {
+              setShowOrganizerAuthModal(true);
+            } else {
+              setAppMode('organizer');
+            }
+          }}
+          onNavigateToAdmin={() => {
+            if (!isMasterAdminUnlocked) {
+              setShowAuthModal(true);
+            } else {
+              setAppMode('admin');
+            }
+          }}
         />
       ) : (
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto flex flex-col gap-6">
           {appMode === 'organizer' ? (
-            /* Organizer Workspace (PART 04) */
-            <OrganizerWorkspace
-              onSwitchToMasterAdmin={() => {
-                if (!isMasterAdminUnlocked) {
-                  setShowAuthModal(true);
-                } else {
-                  setAppMode('admin');
-                }
-              }}
-              onOpenPublicPreview={(course) => {
-                setActiveParticipantSlug(course.slug);
-                setAppMode('participant');
-              }}
-            />
+            !isOrganizerUnlocked ? (
+              /* Locked Organizer Gate Screen */
+              <OrganizerLockedGate
+                onUnlockSuccess={handleUnlockOrganizer}
+                onNavigateToParticipant={() => setAppMode('participant')}
+              />
+            ) : (
+              /* Organizer Workspace (PART 04) */
+              <OrganizerWorkspace
+                onSwitchToMasterAdmin={() => {
+                  if (!isMasterAdminUnlocked) {
+                    setShowAuthModal(true);
+                  } else {
+                    setAppMode('admin');
+                  }
+                }}
+                onOpenPublicPreview={(course) => {
+                  setActiveParticipantSlug(course.slug);
+                  setAppMode('participant');
+                }}
+                onLockOrganizer={handleLockOrganizer}
+              />
+            )
           ) : appMode === 'admin' ? (
           !isMasterAdminUnlocked ? (
             /* Locked State Screen */
-            <div className="bg-white border-2 border-zinc-900 p-8 text-center max-w-md mx-auto my-12 shadow-md space-y-4">
-              <div className="w-12 h-12 bg-zinc-900 text-white mx-auto flex items-center justify-center">
-                <Lock className="w-6 h-6" />
+            <div className="bg-white border-2 border-zinc-900 p-8 text-center max-w-md mx-auto my-12 shadow-[6px_6px_0px_0px_rgba(24,24,27,1)] space-y-4">
+              <div className="w-12 h-12 bg-zinc-900 text-white mx-auto flex items-center justify-center border border-zinc-700">
+                <Lock className="w-6 h-6 text-blue-400" />
               </div>
               <h3 className="text-xl font-black uppercase text-zinc-950">
-                Master Admin Dikunci
+                Master Admin Dilindungi
               </h3>
               <p className="text-xs text-zinc-600 leading-relaxed">
-                Modul tadbir urus dan kawalan platform MyKursus dilindungi oleh kebenaran keselamatan mengikut DCOREV1.
+                Modul tadbir urus dan kawalan platform MyKursus dilindungi oleh tapisan keselamatan pentadbir. Sila sahkan identiti dengan PIN keselamatan.
               </p>
               <button
+                id="btn-trigger-admin-pin"
                 onClick={() => setShowAuthModal(true)}
-                className="w-full py-2.5 bg-zinc-900 text-white text-xs font-bold uppercase tracking-wider border-2 border-zinc-900 hover:bg-zinc-800"
+                className="w-full py-2.5 bg-zinc-900 text-white text-xs font-black uppercase tracking-wider border-2 border-zinc-900 hover:bg-zinc-800 flex items-center justify-center gap-2 cursor-pointer shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]"
               >
-                Masukkan PIN Kebenaran
+                <Lock className="w-4 h-4" />
+                <span>Masukkan PIN Keselamatan</span>
               </button>
             </div>
           ) : (
@@ -398,7 +511,7 @@ export default function App() {
                   setSelectedCourse(null);
                   setAdminView(v);
                 }}
-                onLock={() => setIsMasterAdminUnlocked(false)}
+                onLock={handleLockMasterAdmin}
                 onLoadPilot={handleLoadPilotData}
                 onClearAll={handleClearAllData}
                 pendingCount={pendingApprovalCount}
@@ -499,15 +612,18 @@ export default function App() {
         />
       )}
 
-      {/* Security Auth Modal for PIN Verification */}
+      {/* Security Auth Modal for Organizer PIN Verification (1234) */}
+      <OrganizerAuthModal
+        isOpen={showOrganizerAuthModal}
+        onClose={() => setShowOrganizerAuthModal(false)}
+        onSuccess={handleUnlockOrganizer}
+      />
+
+      {/* Security Auth Modal for Master Admin */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onSuccess={() => {
-          setIsMasterAdminUnlocked(true);
-          setShowAuthModal(false);
-          setAppMode('admin');
-        }}
+        onSuccess={handleUnlockMasterAdmin}
       />
 
       {/* Platform Standard Footer */}

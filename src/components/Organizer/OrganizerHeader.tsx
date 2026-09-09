@@ -7,7 +7,8 @@ import {
   UserCheck, 
   Layers, 
   RefreshCw, 
-  AlertCircle 
+  AlertCircle,
+  Lock
 } from 'lucide-react';
 import { Organizer, UserRole } from '../../types';
 
@@ -24,6 +25,7 @@ interface OrganizerHeaderProps {
   onNavigate?: (view: 'dashboard' | 'create_course') => void;
   onOpenCreateCourse?: () => void;
   totalCoursesCount?: number;
+  onLockOrganizer?: () => void;
 }
 
 export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
@@ -38,7 +40,8 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
   activeView = 'dashboard',
   onNavigate,
   onOpenCreateCourse,
-  totalCoursesCount = 0
+  totalCoursesCount = 0,
+  onLockOrganizer
 }) => {
   const orgList = organizers || allOrganizers || [];
   const handleSelectOrg = (orgId: string) => {
@@ -153,11 +156,24 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
 
           <button
             onClick={handleCreateCourse}
-            className="px-3.5 py-2 text-xs font-bold flex items-center gap-2 border-2 border-zinc-900 transition-all shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] bg-blue-600 text-white hover:bg-blue-700"
+            className="px-3.5 py-2 text-xs font-bold flex items-center gap-2 border-2 border-zinc-900 transition-all shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>+ Cipta Kursus Baharu</span>
           </button>
+
+          {onLockOrganizer && (
+            <button
+              id="btn-header-lock-organizer"
+              type="button"
+              onClick={onLockOrganizer}
+              className="px-3 py-2 text-xs font-bold flex items-center gap-1.5 border-2 border-zinc-900 bg-zinc-100 hover:bg-red-50 hover:text-red-700 hover:border-red-600 transition-all cursor-pointer shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]"
+              title="Kunci Ruang Penganjur (Perlu PIN 1234 untuk buka semula)"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Kunci</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
