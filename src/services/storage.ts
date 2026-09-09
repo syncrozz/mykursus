@@ -48,6 +48,12 @@ import {
   syncParticipantToFirestore,
   syncEnrollmentToFirestore,
   deleteEnrollmentFromFirestore,
+  pullCoursesFromFirestore,
+  pullParticipantsFromFirestore,
+  pullCourseSubcollections,
+  queryParticipantByPhoneInFirestore,
+  syncAllLocalDataToFirestore,
+  syncAllCloudDataToLocal,
 } from './firebase';
 
 export interface UserAuthContext {
@@ -95,6 +101,15 @@ function saveToStorage<T>(key: string, data: T): void {
   }
 }
 
+// Cross-tab synchronization bridge: catches changes made in another tab of the same browser
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key && e.key.startsWith('mykursus_')) {
+      window.dispatchEvent(new CustomEvent('mykursus_data_changed', { detail: { key: e.key } }));
+    }
+  });
+}
+
 class PlatformStorageRepository {
   private initialized = false;
 
@@ -112,6 +127,18 @@ class PlatformStorageRepository {
       localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
     }
     this.initialized = true;
+
+    // Immediately trigger background sync with Cloud Firestore
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        this.syncFromCloud().then(res => {
+          // If cloud was empty but local has data, push local to cloud to ensure incognito tabs can see it
+          if (res.pulledCourses === 0 && res.pulledParticipants === 0 && this.getCourses().length > 0) {
+            this.syncToCloud().catch(err => console.warn('Sync to cloud error:', err));
+          }
+        }).catch(err => console.warn('Background syncFromCloud error:', err));
+      }, 150);
+    }
   }
 
   // --- Audit Logging ---
@@ -717,6 +744,245 @@ class PlatformStorageRepository {
     } catch (e) {
       console.warn('Session storage clear error:', e);
     }
+  }
+
+  /**
+   * Asynchronous phone verification with direct Cloud Firestore fallback.
+   * Ensures participants in incognito tabs or across different devices
+   * can authenticate seamlessly even before full localStorage replication occurs.
+   */
+  public async verifyParticipantPhoneForCourseAsync(
+    courseId: string,
+    rawInputPhone: string
+  ): Promise<VerifiedParticipantData | null> {
+    // 1. Check local storage first for instantaneous response
+    const localResult = this.verifyParticipantPhoneForCourse(courseId, rawInputPhone);
+    if (localResult) return localResult;
+
+    // 2. Query Cloud Firestore directly
+    try {
+      const cloudResult = await queryParticipantByPhoneInFirestore(courseId, rawInputPhone);
+      if (cloudResult && cloudResult.participant && cloudResult.enrollment) {
+        // Cache participant and enrollment locally
+        const parts = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
+        const enrs = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+
+        const pIdx = parts.findIndex(p => p.id === cloudResult.participant.id);
+        if (pIdx >= 0) parts[pIdx] = { ...parts[pIdx], ...cloudResult.participant };
+        else parts.push(cloudResult.participant);
+        saveToStorage(STORAGE_KEYS.PARTICIPANTS, parts);
+
+        const eIdx = enrs.findIndex(e => e.id === cloudResult.enrollment.id);
+        if (eIdx >= 0) enrs[eIdx] = { ...enrs[eIdx], ...cloudResult.enrollment };
+        else enrs.push(cloudResult.enrollment);
+        saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrs);
+
+        // Fetch course subcollections to ensure schedule and attendance are available
+        const sub = await pullCourseSubcollections(courseId);
+        if (sub.scheduleDays.length > 0) {
+          const days = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
+          const mergedDays = [...days.filter(d => d.courseId !== courseId), ...sub.scheduleDays];
+          saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, mergedDays);
+        }
+        if (sub.sessions.length > 0) {
+          const sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
+          const mergedSessions = [...sessions.filter(s => s.courseId !== courseId), ...sub.sessions];
+          saveToStorage(STORAGE_KEYS.SESSIONS, mergedSessions);
+        }
+
+        const verified = this.verifyParticipantPhoneForCourse(courseId, rawInputPhone);
+        if (verified) {
+          this.setParticipantSession(courseId, verified);
+          return verified;
+        }
+      }
+
+      // 3. Trigger full background sync and retry
+      const syncRes = await this.syncFromCloud();
+      if (syncRes.success) {
+        const retryLocal = this.verifyParticipantPhoneForCourse(courseId, rawInputPhone);
+        if (retryLocal) {
+          this.setParticipantSession(courseId, retryLocal);
+          return retryLocal;
+        }
+      }
+    } catch (err) {
+      console.warn('verifyParticipantPhoneForCourseAsync cloud lookup error:', err);
+    }
+
+    return null;
+  }
+
+  /**
+   * Pull all courses, participants, enrollments, schedule days, sessions,
+   * announcements, and resources from Cloud Firestore and merge with local storage.
+   */
+  public async syncFromCloud(): Promise<{ success: boolean; pulledCourses: number; pulledParticipants: number }> {
+    try {
+      const cloudData = await syncAllCloudDataToLocal();
+      if (!cloudData) return { success: false, pulledCourses: 0, pulledParticipants: 0 };
+
+      let hasUpdates = false;
+
+      // 1. Merge Courses
+      if (cloudData.courses && cloudData.courses.length > 0) {
+        const localCourses = getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []);
+        const mergedCourses = [...localCourses];
+        for (const cc of cloudData.courses) {
+          const idx = mergedCourses.findIndex(c => c.id === cc.id || c.slug === cc.slug);
+          if (idx >= 0) {
+            mergedCourses[idx] = { ...mergedCourses[idx], ...cc };
+          } else {
+            mergedCourses.push(cc);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.COURSES, mergedCourses);
+        hasUpdates = true;
+      }
+
+      // 2. Merge Participants
+      if (cloudData.participants && cloudData.participants.length > 0) {
+        const localParts = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
+        const mergedParts = [...localParts];
+        for (const cp of cloudData.participants) {
+          const idx = mergedParts.findIndex(p => p.id === cp.id || (cp.phone && normalizePhoneNumber(p.phone) === normalizePhoneNumber(cp.phone)));
+          if (idx >= 0) {
+            mergedParts[idx] = { ...mergedParts[idx], ...cp };
+          } else {
+            mergedParts.push(cp);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.PARTICIPANTS, mergedParts);
+        hasUpdates = true;
+      }
+
+      // 3. Merge Enrollments
+      if (cloudData.enrollments && cloudData.enrollments.length > 0) {
+        const localEnrs = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+        const mergedEnrs = [...localEnrs];
+        for (const ce of cloudData.enrollments) {
+          const idx = mergedEnrs.findIndex(e => e.id === ce.id || (e.courseId === ce.courseId && e.participantId === ce.participantId));
+          if (idx >= 0) {
+            mergedEnrs[idx] = { ...mergedEnrs[idx], ...ce };
+          } else {
+            mergedEnrs.push(ce);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.ENROLLMENTS, mergedEnrs);
+        hasUpdates = true;
+      }
+
+      // 4. Merge Schedule Days
+      if (cloudData.scheduleDays && cloudData.scheduleDays.length > 0) {
+        const localDays = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
+        const mergedDays = [...localDays];
+        for (const cd of cloudData.scheduleDays) {
+          const idx = mergedDays.findIndex(d => d.id === cd.id || (d.courseId === cd.courseId && d.dayNumber === cd.dayNumber));
+          if (idx >= 0) {
+            mergedDays[idx] = { ...mergedDays[idx], ...cd };
+          } else {
+            mergedDays.push(cd);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, mergedDays);
+        hasUpdates = true;
+      }
+
+      // 5. Merge Sessions
+      if (cloudData.sessions && cloudData.sessions.length > 0) {
+        const localSessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
+        const mergedSessions = [...localSessions];
+        for (const cs of cloudData.sessions) {
+          const idx = mergedSessions.findIndex(s => s.id === cs.id);
+          if (idx >= 0) {
+            mergedSessions[idx] = { ...mergedSessions[idx], ...cs };
+          } else {
+            mergedSessions.push(cs);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.SESSIONS, mergedSessions);
+        hasUpdates = true;
+      }
+
+      // 6. Merge Announcements
+      if (cloudData.announcements && cloudData.announcements.length > 0) {
+        const localAnn = getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
+        const mergedAnn = [...localAnn];
+        for (const ca of cloudData.announcements) {
+          const idx = mergedAnn.findIndex(a => a.id === ca.id);
+          if (idx >= 0) {
+            mergedAnn[idx] = { ...mergedAnn[idx], ...ca };
+          } else {
+            mergedAnn.push(ca);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, mergedAnn);
+        hasUpdates = true;
+      }
+
+      // 7. Merge Resources
+      if (cloudData.resources && cloudData.resources.length > 0) {
+        const localRes = getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []);
+        const mergedRes = [...localRes];
+        for (const cr of cloudData.resources) {
+          const idx = mergedRes.findIndex(r => r.id === cr.id);
+          if (idx >= 0) {
+            mergedRes[idx] = { ...mergedRes[idx], ...cr };
+          } else {
+            mergedRes.push(cr);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.RESOURCES, mergedRes);
+        hasUpdates = true;
+      }
+
+      // 8. Merge Attendances
+      if (cloudData.attendances && cloudData.attendances.length > 0) {
+        const localAtt = getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []);
+        const mergedAtt = [...localAtt];
+        for (const ca of cloudData.attendances) {
+          const idx = mergedAtt.findIndex(a => a.id === ca.id);
+          if (idx >= 0) {
+            mergedAtt[idx] = { ...mergedAtt[idx], ...ca };
+          } else {
+            mergedAtt.push(ca);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, mergedAtt);
+        hasUpdates = true;
+      }
+
+      if (hasUpdates && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mykursus_data_changed'));
+      }
+
+      return {
+        success: true,
+        pulledCourses: cloudData.courses?.length || 0,
+        pulledParticipants: cloudData.participants?.length || 0
+      };
+    } catch (err) {
+      console.warn('syncFromCloud error:', err);
+      return { success: false, pulledCourses: 0, pulledParticipants: 0 };
+    }
+  }
+
+  /**
+   * Push all current local data to Cloud Firestore so that other browsers,
+   * incognito windows, and mobile devices have immediate access.
+   */
+  public async syncToCloud(): Promise<{ success: boolean; count: number; error?: string }> {
+    const data = {
+      courses: getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []),
+      scheduleDays: getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []),
+      sessions: getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []),
+      announcements: getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []),
+      resources: getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []),
+      participants: getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []),
+      enrollments: getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []),
+      attendances: getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []),
+    };
+    return await syncAllLocalDataToFirestore(data);
   }
 
   // --- Authorization & RBAC Enforcement (DCOREV1 Section 03 & 28) ---
@@ -1339,6 +1605,14 @@ class PlatformStorageRepository {
 
     saveToStorage(STORAGE_KEYS.PARTICIPANTS, participants);
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments);
+
+    // Sync all imported participants and enrollments to Cloud Firestore in background
+    participants.forEach(p => {
+      syncParticipantToFirestore(p).catch(err => console.warn('Bulk import participant firestore sync error:', err));
+    });
+    enrollments.filter(e => e.courseId === courseId).forEach(e => {
+      syncEnrollmentToFirestore(e).catch(err => console.warn('Bulk import enrollment firestore sync error:', err));
+    });
 
     const course = this.getCourseById(courseId);
     this.addAuditLog(
@@ -2301,6 +2575,9 @@ class PlatformStorageRepository {
       KIAR_PILOT_COURSE.id,
       KIAR_PILOT_COURSE.title
     );
+
+    // Sync pilot data to Cloud Firestore in the background for cross-tab & incognito access
+    this.syncToCloud().catch(err => console.warn('Background syncToCloud error after loadKiarPilot:', err));
   }
 
   public clearAllData(): void {

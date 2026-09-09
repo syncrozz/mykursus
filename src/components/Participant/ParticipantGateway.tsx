@@ -73,10 +73,37 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
         setCourse(found);
         setNotFoundError(false);
       } else {
-        setCourse(null);
-        setNotFoundError(true);
+        // Try pulling latest courses from Cloud Firestore (e.g. Incognito or fresh link)
+        platformStorage.syncFromCloud().then(res => {
+          const recheck = platformStorage.getCourseBySlug(clean);
+          if (recheck) {
+            setCourse(recheck);
+            setNotFoundError(false);
+          } else {
+            setCourse(null);
+            setNotFoundError(true);
+          }
+        }).catch(() => {
+          setCourse(null);
+          setNotFoundError(true);
+        });
       }
     }
+  }, [currentSlug]);
+
+  // Listen to cross-tab or background cloud sync updates
+  useEffect(() => {
+    const handleDataChanged = () => {
+      if (currentSlug) {
+        const updated = platformStorage.getCourseBySlug(currentSlug);
+        if (updated) {
+          setCourse(updated);
+          setNotFoundError(false);
+        }
+      }
+    };
+    window.addEventListener('mykursus_data_changed', handleDataChanged);
+    return () => window.removeEventListener('mykursus_data_changed', handleDataChanged);
   }, [currentSlug]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {

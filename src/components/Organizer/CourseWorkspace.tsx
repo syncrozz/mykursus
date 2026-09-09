@@ -19,8 +19,12 @@ import {
   Zap, 
   History, 
   Radio,
-  UserCheck
+  UserCheck,
+  RefreshCw,
+  Cloud,
+  Check
 } from 'lucide-react';
+import { platformStorage } from '../../services/storage';
 import { 
   Course, 
   ApprovalStatus, 
@@ -129,6 +133,27 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
     'overview' | 'operations' | 'documents' | 'info' | 'participants' | 'attendance' | 'schedule' | 'resources' | 'announcements' | 'accommodation' | 'logistics' | 'audit'
   >('overview');
 
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [cloudSyncNotice, setCloudSyncNotice] = useState<string | null>(null);
+
+  const handleSyncToCloud = async () => {
+    setIsSyncingCloud(true);
+    setCloudSyncNotice(null);
+    try {
+      const res = await platformStorage.syncToCloud();
+      if (res.success) {
+        setCloudSyncNotice(`✓ Data disegerak ke Cloud Firestore (${res.count} rekod). Boleh diakses di tab incognito.`);
+        setTimeout(() => setCloudSyncNotice(null), 5000);
+      } else {
+        setCloudSyncNotice(`Ralat: ${res.error || 'Gagal menyegerak ke Cloud'}`);
+      }
+    } catch (e: any) {
+      setCloudSyncNotice(`Ralat: ${e.message}`);
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
   const isDraft = course.approvalStatus === ApprovalStatus.DRAFT;
   const isChangesRequired = course.approvalStatus === ApprovalStatus.CHANGES_REQUIRED;
   const isSubmitted = course.approvalStatus === ApprovalStatus.SUBMITTED;
@@ -210,6 +235,16 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
           {/* Quick Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
+              onClick={handleSyncToCloud}
+              disabled={isSyncingCloud}
+              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-400 text-blue-900 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-60"
+              title="Segerak kursus dan senarai peserta ke Cloud Firestore supaya boleh diakses di tab incognito dan peranti lain"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+              <span>{isSyncingCloud ? 'Menyegerak ke Cloud...' : 'Segerak ke Cloud'}</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('operations')}
               className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-zinc-950 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border border-zinc-950 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-transform active:translate-y-0.5 cursor-pointer"
             >
@@ -236,6 +271,21 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
             )}
           </div>
         </div>
+
+        {cloudSyncNotice && (
+          <div className="p-2.5 bg-blue-50 border-2 border-blue-600 text-blue-950 text-xs font-bold flex items-center justify-between animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <Cloud className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>{cloudSyncNotice}</span>
+            </div>
+            <button
+              onClick={() => setCloudSyncNotice(null)}
+              className="text-blue-700 hover:text-blue-900 font-bold ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Course Title and Meta */}
         <div>

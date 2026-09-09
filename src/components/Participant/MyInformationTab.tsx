@@ -10,7 +10,9 @@ import {
   Phone,
   HelpCircle,
   Sparkles,
-  BedDouble
+  BedDouble,
+  RefreshCw,
+  Cloud
 } from 'lucide-react';
 import { Course, CourseModuleKey, VerifiedParticipantData } from '../../types';
 import { platformStorage } from '../../services/storage';
@@ -31,14 +33,17 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
   const [phoneNumberInput, setPhoneNumberInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   const isAccommodationEnabled = (course.modules || []).some(
     m => m.key === CourseModuleKey.ACCOMMODATION && m.enabled
   );
 
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSyncNotice(null);
 
     const trimmed = phoneNumberInput.trim();
     if (!trimmed) {
@@ -49,20 +54,42 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
     setIsVerifying(true);
 
     try {
-      const result = platformStorage.verifyParticipantPhoneForCourse(course.id, trimmed);
+      const result = await platformStorage.verifyParticipantPhoneForCourseAsync(course.id, trimmed);
       if (result) {
         onVerified(result);
         setErrorMessage(null);
         setPhoneNumberInput('');
       } else {
         setErrorMessage(
-          'Nombor telefon tidak dijumpai dalam senarai pendaftaran kursus ini. Sila semak semula nombor anda atau hubungi urus setia jika terdapat kesilapan pendaftaran.'
+          'Nombor telefon tidak dijumpai dalam pangkalan data kursus ini. Sila semak semula nombor anda atau klik "Segerak Semula dari Cloud" di bawah jika penganjur baru sahaja mendaftarkan anda.'
         );
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Ralat semasa menyemak pengesahan nombor telefon.');
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleForceSync = async () => {
+    setIsSyncing(true);
+    setErrorMessage(null);
+    setSyncNotice(null);
+    try {
+      const res = await platformStorage.syncFromCloud();
+      if (phoneNumberInput.trim()) {
+        const recheck = await platformStorage.verifyParticipantPhoneForCourseAsync(course.id, phoneNumberInput.trim());
+        if (recheck) {
+          onVerified(recheck);
+          setPhoneNumberInput('');
+          return;
+        }
+      }
+      setSyncNotice(`Penyegerakan Cloud selesai (${res.pulledParticipants} peserta dikesan). Anda boleh cuba sahkan semula.`);
+    } catch (e: any) {
+      setErrorMessage('Gagal menyegerak dari Cloud Firestore. Sila cuba sebentar lagi.');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -99,9 +126,27 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
           </div>
 
           {errorMessage && (
-            <div className="p-3 bg-red-50 border-2 border-red-500 text-red-800 text-xs flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <div className="leading-relaxed">{errorMessage}</div>
+            <div className="p-3 bg-red-50 border-2 border-red-500 text-red-800 text-xs space-y-2">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">{errorMessage}</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleForceSync}
+                disabled={isSyncing}
+                className="mt-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-900 font-bold text-[11px] border border-red-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'Menyegerak dari Cloud Firestore...' : 'Segerak Semula Data dari Cloud'}</span>
+              </button>
+            </div>
+          )}
+
+          {syncNotice && (
+            <div className="p-3 bg-emerald-50 border-2 border-emerald-600 text-emerald-900 text-xs flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span>{syncNotice}</span>
             </div>
           )}
 
