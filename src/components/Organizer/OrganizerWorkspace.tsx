@@ -36,8 +36,11 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   onLockOrganizer,
 }) => {
   // Organizers available on platform
-  const [organizers, setOrganizers] = useState<Organizer[]>([]);
-  const [currentOrganizerId, setCurrentOrganizerId] = useState<string>('org-ppki-01');
+  const [organizers, setOrganizers] = useState<Organizer[]>(() => platformStorage.getOrganizers());
+  const [currentOrganizerId, setCurrentOrganizerId] = useState<string>(() => {
+    const orgs = platformStorage.getOrganizers();
+    return orgs.length > 0 ? orgs[0].id : '';
+  });
 
   // Simulation Role: ORGANIZER_ADMIN by default, can switch to MASTER_ADMIN or PARTICIPANT for RBAC testing
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.ORGANIZER_ADMIN);
@@ -73,20 +76,24 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   useEffect(() => {
     const orgs = platformStorage.getOrganizers();
     setOrganizers(orgs);
-    if (orgs.length > 0 && !orgs.some(o => o.id === currentOrganizerId)) {
-      setCurrentOrganizerId(orgs[0].id);
+    if (orgs.length > 0) {
+      if (!currentOrganizerId || !orgs.some(o => o.id === currentOrganizerId)) {
+        setCurrentOrganizerId(orgs[0].id);
+      }
+    } else {
+      setCurrentOrganizerId('');
     }
   }, [dataVersion]);
 
-  const currentOrganizer = organizers.find(o => o.id === currentOrganizerId) || {
-    id: currentOrganizerId,
+  const currentOrganizer = organizers.find(o => o.id === currentOrganizerId) || (organizers.length > 0 ? organizers[0] : {
+    id: currentOrganizerId || 'org-temp',
     name: 'Penganjur',
     code: 'ORG',
     status: 'ACTIVE',
     contactPerson: 'Urus Setia',
     email: '',
     phone: '',
-  };
+  });
 
   // Construct Auth Context for storage authorization
   const authContext: UserAuthContext = {
@@ -422,11 +429,6 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     }
   };
 
-  const handleLoadPilot = () => {
-    platformStorage.loadKiarPilot();
-    handleRefresh();
-  };
-
   // RBAC Boundary 1: If current role is PARTICIPANT, block workspace access
   if (currentRole === UserRole.PARTICIPANT) {
     return (
@@ -464,7 +466,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onLockOrganizer={onLockOrganizer}
         />
         <AccessDeniedNotice
-          reason={`Kursus "${activeCourse.title}" dimiliki oleh organisasi lain (${activeCourse.organizerId}). Mengikut prinsip pemintalan penyewa (multi-tenant isolation) DCOREV1, anda tidak mempunyai hak akses.`}
+          reason={`Kursus "${activeCourse.title}" dimiliki oleh organisasi lain (${activeCourse.organizerId}). Mengikut prinsip pemintalan penyewa (multi-tenant isolation), anda tidak mempunyai hak akses.`}
           onBackToDashboard={() => setSelectedCourseId(null)}
           onSwitchToAuthorizedRole={(role) => setCurrentRole(role)}
         />
@@ -525,7 +527,6 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           onOpenPublicPreview={(course) => {
             if (onOpenPublicPreview) onOpenPublicPreview(course);
           }}
-          onLoadPilot={handleLoadPilot}
           onDeleteCourse={handleDeleteCourse}
           onBulkDeleteCourses={handleBulkDeleteCourses}
         />

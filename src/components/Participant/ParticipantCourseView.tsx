@@ -34,13 +34,18 @@ import {
   X,
   Radio,
   Eye,
-  Filter
+  Filter,
+  Edit3,
+  Trash2,
+  Send
 } from 'lucide-react';
 import { 
   Course, 
   ScheduleDay, 
   SessionItem, 
   Announcement, 
+  AnnouncementCategory,
+  AnnouncementPriority,
   CourseModuleKey, 
   ApprovalStatus, 
   CourseStatus,
@@ -55,6 +60,7 @@ import {
   formatWhatsAppCourseShare 
 } from '../../utils/communicationHelpers';
 import { copyToClipboard } from '../../utils/clipboard';
+import { formatDateDMY, formatDateRangeDMY, formatDateTimeDMY } from '../../utils/dateFormatter';
 import { MyInformationTab } from './MyInformationTab';
 
 interface ParticipantCourseViewProps {
@@ -64,6 +70,9 @@ interface ParticipantCourseViewProps {
   announcements?: Announcement[];
   isOrganizerPreview?: boolean;
   onClosePreview?: () => void;
+  onUpdateAnnouncement?: (announcement: Announcement) => void;
+  onDeleteAnnouncement?: (id: string) => void;
+  onUpdateCourse?: (course: Course) => void;
 }
 
 export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
@@ -73,6 +82,9 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
   announcements = [],
   isOrganizerPreview = false,
   onClosePreview,
+  onUpdateAnnouncement,
+  onDeleteAnnouncement,
+  onUpdateCourse,
 }) => {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'overview' | 'schedule' | 'announcements' | 'my-info' | 'logistics' | 'resources'>('overview');
@@ -87,6 +99,145 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
   // Copied toast indicators
   const [copiedWifi, setCopiedWifi] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Local Course state for real-time in-place editing (e.g. Wi-Fi)
+  const [localCourse, setLocalCourse] = useState<Course>(course);
+
+  useEffect(() => {
+    setLocalCourse(course);
+  }, [course]);
+
+  // Edit Wi-Fi State & Modal
+  const [showEditWifiModal, setShowEditWifiModal] = useState(false);
+  const [editWifiSsid, setEditWifiSsid] = useState('');
+  const [editWifiPassword, setEditWifiPassword] = useState('');
+  const [editWifiInstructions, setEditWifiInstructions] = useState('');
+  const [editWifiError, setEditWifiError] = useState('');
+
+  const currentWifiSsid = localCourse.venueDetails?.wifiSsid || localCourse.wifiDetails?.ssid || '';
+  const currentWifiPassword = localCourse.venueDetails?.wifiPassword || localCourse.wifiDetails?.password || '';
+
+  const handleOpenEditWifi = () => {
+    setEditWifiSsid(currentWifiSsid);
+    setEditWifiPassword(currentWifiPassword);
+    setEditWifiInstructions(localCourse.wifiDetails?.instructions || 'Sambungkan peranti ke rangkaian dan masukkan kata laluan yang tertera.');
+    setEditWifiError('');
+    setShowEditWifiModal(true);
+  };
+
+  const handleSaveWifi = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editWifiSsid.trim()) {
+      setEditWifiError('Sila masukkan Nama Rangkaian (SSID).');
+      return;
+    }
+
+    const updatedVenueDetails = {
+      ...(localCourse.venueDetails || { hallName: '', floorLevel: '', parkingInfo: '', directions: '' }),
+      wifiSsid: editWifiSsid.trim(),
+      wifiPassword: editWifiPassword.trim(),
+    };
+
+    const updatedWifiDetails = {
+      ssid: editWifiSsid.trim(),
+      password: editWifiPassword.trim(),
+      instructions: editWifiInstructions.trim(),
+    };
+
+    const updatedCourse: Course = {
+      ...localCourse,
+      venueDetails: updatedVenueDetails,
+      wifiDetails: updatedWifiDetails,
+      updatedAt: new Date().toISOString(),
+    };
+
+    platformStorage.saveCourse(updatedCourse);
+    setLocalCourse(updatedCourse);
+    if (onUpdateCourse) {
+      onUpdateCourse(updatedCourse);
+    }
+    setShowEditWifiModal(false);
+    setEditToast('✓ Maklumat Wi-Fi tetamu berjaya dikemaskini!');
+    setTimeout(() => setEditToast(null), 3500);
+  };
+
+  // Local announcements state for real-time in-place editing
+  const [localAnnouncements, setLocalAnnouncements] = useState<Announcement[]>(announcements || []);
+
+  useEffect(() => {
+    setLocalAnnouncements(announcements || []);
+  }, [announcements]);
+
+  // Edit Announcement In-Place Modal State
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState<AnnouncementCategory>('GENERAL');
+  const [editPriority, setEditPriority] = useState<AnnouncementPriority>('NORMAL');
+  const [editContent, setEditContent] = useState('');
+  const [editRelatedSessionId, setEditRelatedSessionId] = useState('');
+  const [editUpdateTimestamp, setEditUpdateTimestamp] = useState(false);
+  const [editFormError, setEditFormError] = useState('');
+  const [editToast, setEditToast] = useState<string | null>(null);
+
+  const handleOpenEditAnnouncement = (ann: Announcement) => {
+    setEditingAnnouncement(ann);
+    setEditTitle(ann.title);
+    setEditCategory(ann.category || 'GENERAL');
+    setEditPriority(ann.priority || 'NORMAL');
+    setEditContent(ann.content);
+    setEditRelatedSessionId(ann.relatedSessionId || '');
+    setEditUpdateTimestamp(false);
+    setEditFormError('');
+  };
+
+  const handleSaveEditAnnouncement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAnnouncement) return;
+
+    if (!editTitle.trim()) {
+      setEditFormError('Sila masukkan tajuk pengumuman.');
+      return;
+    }
+    if (!editContent.trim()) {
+      setEditFormError('Sila masukkan isi kandungan pengumuman.');
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const updated: Announcement = {
+      ...editingAnnouncement,
+      title: editTitle.trim(),
+      category: editCategory,
+      priority: editPriority,
+      content: editContent.trim(),
+      relatedSessionId: editRelatedSessionId || undefined,
+      publishedAt: editUpdateTimestamp ? nowIso : editingAnnouncement.publishedAt,
+      updatedAt: nowIso,
+    };
+
+    platformStorage.saveAnnouncement(updated);
+    setLocalAnnouncements(prev => prev.map(a => a.id === updated.id ? updated : a));
+    if (onUpdateAnnouncement) {
+      onUpdateAnnouncement(updated);
+    }
+    setEditingAnnouncement(null);
+    setEditToast('✓ Maklumat hebahan berjaya dikemaskini!');
+    setTimeout(() => setEditToast(null), 3500);
+  };
+
+  const handleDeleteAnnouncementFromModal = (id: string) => {
+    if (!window.confirm('Adakah anda pasti mahu memadam hebahan ini secara kekal?')) {
+      return;
+    }
+    platformStorage.deleteAnnouncement(id, course.id);
+    setLocalAnnouncements(prev => prev.filter(a => a.id !== id));
+    if (onDeleteAnnouncement) {
+      onDeleteAnnouncement(id);
+    }
+    setEditingAnnouncement(null);
+    setEditToast('✓ Hebahan telah dipadam.');
+    setTimeout(() => setEditToast(null), 3500);
+  };
 
   // Participant Read/Unread Announcement Tracking
   const [readAnnouncementIds, setReadAnnouncementIds] = useState<string[]>([]);
@@ -150,7 +301,7 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
   };
 
   const handleCopyCourseLink = async () => {
-    const url = `${window.location.origin}/course/${course.slug}`;
+    const url = `${window.location.origin}/${course.slug}`;
     await copyToClipboard(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 3000);
@@ -226,7 +377,7 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
   ];
 
   // Published announcements only - course isolated and excluding drafts
-  const publishedAnnouncements = (announcements || [])
+  const publishedAnnouncements = (localAnnouncements || [])
     .filter(a => a.courseId === course.id && a.status !== 'DRAFT' && a.isPublic !== false)
     .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
@@ -301,13 +452,13 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
               MYKURSUS
             </span>
             <a
-              href={`${window.location.origin}/course/${course.slug}`}
+              href={`${window.location.origin}/${course.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               className="font-mono text-xs text-zinc-300 hover:text-white hover:underline truncate flex items-center gap-1 transition-colors"
               title="Buka pautan awam kursus ini dalam tab baharu"
             >
-              <span>/course/{course.slug}</span>
+              <span>/{course.slug}</span>
               <ExternalLink className="w-3 h-3 shrink-0 text-zinc-400" />
             </a>
           </div>
@@ -418,7 +569,7 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
               <Calendar className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
               <div>
                 <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">Tarikh Kursus:</span>
-                <span className="font-bold text-zinc-900">{course.startDate} hingga {course.endDate}</span>
+                <span className="font-bold text-zinc-900">{formatDateRangeDMY(course.startDate, course.endDate)}</span>
               </div>
             </div>
 
@@ -628,6 +779,17 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                   <span className="text-xs font-mono opacity-75">
                     {new Date(activeHighAlert.publishedAt).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}
                   </span>
+
+                  {/* Inline Quick Edit Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditAnnouncement(activeHighAlert)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-900 bg-white hover:bg-blue-50 px-2 py-0.5 border border-blue-600 shadow-2xs transition-colors cursor-pointer rounded-xs"
+                    title="Ubah maklumat, tajuk atau kategori hebahan ini"
+                  >
+                    <Edit3 className="w-3 h-3 text-blue-700" />
+                    <span>Ubah Maklumat</span>
+                  </button>
                 </div>
 
                 <h4 className="text-sm font-black tracking-tight">
@@ -651,7 +813,7 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                           setActiveTab('schedule');
                           setSelectedDayNumber(s.dayNumber);
                         }}
-                        className="text-blue-700 font-bold hover:underline shrink-0"
+                        className="text-blue-700 font-bold hover:underline shrink-0 cursor-pointer"
                       >
                         Buka Sesi dalam Jadual →
                       </button>
@@ -661,16 +823,26 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleOpenEditAnnouncement(activeHighAlert)}
+                className="px-3 py-1.5 text-xs font-black bg-white hover:bg-blue-50 text-blue-950 border-2 border-blue-700 shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Sunting tajuk, kategori, keutamaan atau maklumat hebahan ini"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-blue-700" />
+                <span>Ubah Hebahan Ini</span>
+              </button>
+
               <button
                 onClick={() => setActiveTab('announcements')}
-                className="px-3 py-1.5 text-xs font-bold bg-white border border-current hover:bg-white/80 transition-colors"
+                className="px-3 py-1.5 text-xs font-bold bg-white border border-current hover:bg-white/80 transition-colors cursor-pointer"
               >
                 Lihat Semua ({publishedAnnouncements.length})
               </button>
               <button
                 onClick={() => handleMarkAsRead(activeHighAlert.id)}
-                className="px-3 py-1.5 text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 transition-colors flex items-center gap-1"
+                className="px-3 py-1.5 text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 transition-colors flex items-center gap-1 cursor-pointer"
                 title="Tutup makluman ini dan tandakan sebagai telah dibaca"
               >
                 <Check className="w-3.5 h-3.5" />
@@ -683,36 +855,59 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Quick Wi-Fi Banner (if provided) */}
-            {course.venueDetails?.wifiSsid && (
-              <div className="p-4 bg-zinc-900 text-white border-2 border-zinc-900 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+            {currentWifiSsid && (
+              <div className="p-4 bg-zinc-900 text-white border-2 border-zinc-900 flex flex-col sm:flex-row justify-between sm:items-center gap-3 shadow-xs">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-zinc-800 text-white shrink-0">
+                  <div className="p-2.5 bg-zinc-800 text-white shrink-0 border border-zinc-700">
                     <Wifi className="w-5 h-5 text-emerald-400" />
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
-                      Wi-Fi Tetamu Kursus:
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
+                        Wi-Fi Tetamu Kursus:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleOpenEditWifi}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
+                        title="Ubah SSID atau kata laluan Wi-Fi ini"
+                      >
+                        <Edit3 className="w-3 h-3 text-emerald-400" />
+                        <span>Ubah Detail</span>
+                      </button>
+                    </div>
+                    <span className="text-sm font-bold font-mono text-white block">
+                      SSID: {currentWifiSsid}
                     </span>
-                    <span className="text-sm font-bold font-mono text-white">
-                      SSID: {course.venueDetails.wifiSsid}
-                    </span>
-                    {course.venueDetails.wifiPassword && (
+                    {currentWifiPassword && (
                       <span className="text-xs text-zinc-300 block font-mono">
-                        Kata Laluan: {course.venueDetails.wifiPassword}
+                        Kata Laluan: {currentWifiPassword}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {course.venueDetails.wifiPassword && (
+                <div className="flex items-center gap-2 self-start sm:self-center shrink-0 flex-wrap">
                   <button
-                    onClick={() => handleCopyWifiPassword(course.venueDetails?.wifiPassword || '')}
-                    className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                    type="button"
+                    onClick={handleOpenEditWifi}
+                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-400 shadow-2xs"
+                    title="Ubah SSID atau Kata Laluan Wi-Fi ini"
                   >
-                    {copiedWifi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedWifi ? 'Disalin!' : 'Salin Kata Laluan'}</span>
+                    <Edit3 className="w-3.5 h-3.5 text-zinc-950" />
+                    <span>Ubah Wi-Fi</span>
                   </button>
-                )}
+
+                  {currentWifiPassword && (
+                    <button
+                      onClick={() => handleCopyWifiPassword(currentWifiPassword)}
+                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      {copiedWifi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedWifi ? 'Disalin!' : 'Salin Kata Laluan'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -965,7 +1160,7 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                         : 'bg-white text-zinc-700 border-zinc-900 hover:bg-zinc-100'
                     }`}
                   >
-                    Hari {day.dayNumber} ({day.date})
+                    Hari {day.dayNumber} ({formatDateDMY(day.date)})
                   </button>
                 ))}
               </div>
@@ -998,7 +1193,7 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                               HARI {day.dayNumber}
                             </span>
                             <span className="text-sm font-black uppercase text-zinc-950">
-                              {day.date}
+                              {formatDateDMY(day.date)}
                             </span>
                           </div>
                           {day.theme && (
@@ -1413,6 +1608,16 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                             )}
                           </button>
 
+                          {/* Edit shortcut button on each card */}
+                          <button
+                            onClick={() => handleOpenEditAnnouncement(ann)}
+                            className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-900 border border-blue-400 hover:border-blue-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Ubah maklumat hebahan ini"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-blue-700" />
+                            <span>Ubah</span>
+                          </button>
+
                           {isUnread ? (
                             <button
                               onClick={() => handleMarkAsRead(ann.id)}
@@ -1512,13 +1717,24 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
             </div>
 
             {/* Wi-Fi Card (if provided) */}
-            {course.venueDetails?.wifiSsid && (
+            {currentWifiSsid && (
               <div className="bg-white border-2 border-zinc-900 p-5 space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b-2 border-zinc-900">
-                  <Wifi className="w-5 h-5 text-emerald-600" />
-                  <h3 className="text-sm font-black uppercase tracking-tight text-zinc-950">
-                    Akses Wi-Fi Dewan Kursus
-                  </h3>
+                <div className="flex items-center justify-between pb-2 border-b-2 border-zinc-900">
+                  <div className="flex items-center gap-2">
+                    <Wifi className="w-5 h-5 text-emerald-600" />
+                    <h3 className="text-sm font-black uppercase tracking-tight text-zinc-950">
+                      Akses Wi-Fi Dewan Kursus
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenEditWifi}
+                    className="px-2.5 py-1 text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-600 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    title="Ubah SSID atau kata laluan Wi-Fi ini"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Ubah Wi-Fi</span>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -1527,23 +1743,23 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                       Nama Rangkaian (SSID):
                     </span>
                     <span className="text-base font-black font-mono text-zinc-950 select-all">
-                      {course.venueDetails.wifiSsid}
+                      {currentWifiSsid}
                     </span>
                   </div>
 
-                  {course.venueDetails.wifiPassword && (
+                  {currentWifiPassword && (
                     <div className="p-4 bg-zinc-50 border-2 border-zinc-900 flex justify-between items-center">
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
                           Kata Laluan:
                         </span>
                         <span className="text-base font-black font-mono text-zinc-950 select-all">
-                          {course.venueDetails.wifiPassword}
+                          {currentWifiPassword}
                         </span>
                       </div>
                       <button
-                        onClick={() => handleCopyWifiPassword(course.venueDetails?.wifiPassword || '')}
-                        className="px-3 py-1.5 bg-white hover:bg-zinc-100 border-2 border-zinc-900 text-xs font-bold uppercase flex items-center gap-1 transition-colors"
+                        onClick={() => handleCopyWifiPassword(currentWifiPassword)}
+                        className="px-3 py-1.5 bg-white hover:bg-zinc-100 border-2 border-zinc-900 text-xs font-bold uppercase flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         {copiedWifi ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                         <span>{copiedWifi ? 'Disalin!' : 'Salin'}</span>
@@ -1583,14 +1799,14 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                     {course.accommodationDetails.checkInTime && (
                       <div className="p-3 bg-zinc-50 border border-zinc-200">
                         <span className="text-[10px] font-bold uppercase text-zinc-400 block">Daftar Masuk (Check-in):</span>
-                        <span className="font-bold text-zinc-900">{course.accommodationDetails.checkInTime}</span>
+                        <span className="font-bold text-zinc-900">{formatDateTimeDMY(course.accommodationDetails.checkInTime)}</span>
                       </div>
                     )}
 
                     {course.accommodationDetails.checkOutTime && (
                       <div className="p-3 bg-zinc-50 border border-zinc-200">
                         <span className="text-[10px] font-bold uppercase text-zinc-400 block">Daftar Keluar (Check-out):</span>
-                        <span className="font-bold text-zinc-900">{course.accommodationDetails.checkOutTime}</span>
+                        <span className="font-bold text-zinc-900">{formatDateTimeDMY(course.accommodationDetails.checkOutTime)}</span>
                       </div>
                     )}
 
@@ -1801,6 +2017,286 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {editToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-4 py-2.5 shadow-xl border-2 border-zinc-900 font-bold text-xs flex items-center gap-2 animate-bounce">
+          <Check className="w-4 h-4" />
+          <span>{editToast}</span>
+        </div>
+      )}
+
+      {/* Edit Announcement Modal */}
+      {editingAnnouncement && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border-2 border-zinc-950 w-full max-w-lg shadow-[4px_4px_0px_0px_rgba(24,24,27,1)] p-5 space-y-4 my-8">
+            <div className="flex items-center justify-between pb-2 border-b-2 border-zinc-900">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-100 border border-blue-600 text-blue-800">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase text-zinc-950">Kemaskini Maklumat Hebahan</h3>
+                  <p className="text-[11px] text-zinc-500">Ubah kategori, tajuk, keutamaan, atau butiran arahan.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingAnnouncement(null)}
+                className="text-zinc-500 hover:text-zinc-900 cursor-pointer p-1"
+                aria-label="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editFormError && (
+              <div className="p-2.5 bg-red-50 border border-red-300 text-red-900 text-xs flex items-center gap-2 font-medium">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{editFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditAnnouncement} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-zinc-900 mb-1">
+                  Tajuk Pengumuman / Hebahan <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => {
+                    setEditTitle(e.target.value);
+                    if (editFormError) setEditFormError('');
+                  }}
+                  required
+                  placeholder="Tajuk hebahan..."
+                  className="w-full p-2.5 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-900 mb-1">
+                    Kategori Hebahan <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as AnnouncementCategory)}
+                    className="w-full p-2.5 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-medium bg-white"
+                  >
+                    <option value="GENERAL">Makluman Am (UMUM / AM)</option>
+                    <option value="LOCATION_CHANGE">Pindaan Bilik / Lokasi</option>
+                    <option value="SCHEDULE_CHANGE">Pindaan Waktu / Jadual</option>
+                    <option value="RESOURCES">Bahan & Slaid Pembentangan</option>
+                    <option value="URGENT">Arahan Penting Segera</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-900 mb-1">
+                    Tahap Keutamaan (Priority)
+                  </label>
+                  <select
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value as AnnouncementPriority)}
+                    className="w-full p-2.5 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-medium bg-white"
+                  >
+                    <option value="NORMAL">NORMAL (Makluman Am / Rutin)</option>
+                    <option value="IMPORTANT">IMPORTANT (Perhatian Penting - Banner)</option>
+                    <option value="URGENT">URGENT (Tindakan Segera - Banner Merah)</option>
+                    <option value="CRITICAL">CRITICAL (Kritikal - Banner Merah)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-900 mb-1">
+                  Pautkan ke Sesi Jadual (Pilihan)
+                </label>
+                <select
+                  value={editRelatedSessionId}
+                  onChange={(e) => setEditRelatedSessionId(e.target.value)}
+                  className="w-full p-2 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-medium bg-white"
+                >
+                  <option value="">-- Tiada Pautan Sesi (Umum) --</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      Hari {s.dayNumber} [Sesi {s.sessionNumber}] - {s.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-900 mb-1">
+                  Isi Kandungan Pengumuman <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => {
+                    setEditContent(e.target.value);
+                    if (editFormError) setEditFormError('');
+                  }}
+                  required
+                  rows={4}
+                  placeholder="Tuliskan arahan, lokasi baharu, atau panduan kepada peserta..."
+                  className="w-full p-2.5 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden leading-relaxed font-sans"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 p-2.5 bg-zinc-50 border border-zinc-200">
+                <input
+                  type="checkbox"
+                  id="updateTimestampCheckbox"
+                  checked={editUpdateTimestamp}
+                  onChange={(e) => setEditUpdateTimestamp(e.target.checked)}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="updateTimestampCheckbox" className="text-xs text-zinc-700 cursor-pointer select-none">
+                  Kemas kini waktu terbitan kepada waktu sekarang ({new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })})
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-zinc-200">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAnnouncementFromModal(editingAnnouncement.id)}
+                  className="px-3 py-1.5 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 font-bold border border-red-300 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Padam</span>
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingAnnouncement(null)}
+                    className="px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 font-bold border border-zinc-300 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 flex items-center gap-1.5 border-2 border-zinc-900 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Simpan Pindaan</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Wi-Fi Modal */}
+      {showEditWifiModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border-2 border-zinc-950 w-full max-w-md shadow-[4px_4px_0px_0px_rgba(24,24,27,1)] p-5 space-y-4 my-8">
+            <div className="flex items-center justify-between pb-2 border-b-2 border-zinc-900">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-100 border border-emerald-600 text-emerald-800">
+                  <Wifi className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase text-zinc-950">Kemaskini Wi-Fi Tetamu Kursus</h3>
+                  <p className="text-[11px] text-zinc-500">Ubah SSID dan kata laluan sambungan internet bagi peserta.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditWifiModal(false)}
+                className="text-zinc-500 hover:text-zinc-900 cursor-pointer p-1"
+                aria-label="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editWifiError && (
+              <div className="p-2.5 bg-red-50 border border-red-300 text-red-900 text-xs flex items-center gap-2 font-medium">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{editWifiError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveWifi} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-zinc-900 mb-1">
+                  Nama Rangkaian / SSID <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editWifiSsid}
+                  onChange={(e) => {
+                    setEditWifiSsid(e.target.value);
+                    if (editWifiError) setEditWifiError('');
+                  }}
+                  required
+                  placeholder="Contoh: TAMU_CONFERENCE_GUEST"
+                  className="w-full p-2.5 text-xs font-mono border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-bold text-zinc-950"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-900 mb-1">
+                  Kata Laluan (Password)
+                </label>
+                <input
+                  type="text"
+                  value={editWifiPassword}
+                  onChange={(e) => setEditWifiPassword(e.target.value)}
+                  placeholder="Contoh: kiar2026@tamu"
+                  className="w-full p-2.5 text-xs font-mono border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-bold text-zinc-950"
+                />
+                <span className="text-[10px] text-zinc-500 block mt-1">
+                  Kosongkan jika rangkaian Wi-Fi tiada kata laluan (Rangkaian Terbuka).
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-900 mb-1">
+                  Arahan Sambungan (Pilihan)
+                </label>
+                <input
+                  type="text"
+                  value={editWifiInstructions}
+                  onChange={(e) => setEditWifiInstructions(e.target.value)}
+                  placeholder="Contoh: Sambungkan peranti ke rangkaian..."
+                  className="w-full p-2 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-medium"
+                />
+              </div>
+
+              <div className="p-2.5 bg-zinc-50 border border-zinc-200 text-[11px] text-zinc-600 space-y-1">
+                <div className="font-bold text-zinc-800">Pratonton Paparan Semasa:</div>
+                <div className="font-mono text-zinc-900">
+                  SSID: <span className="font-bold text-zinc-950">{editWifiSsid || '(Belum diisi)'}</span>
+                </div>
+                <div className="font-mono text-zinc-900">
+                  Kata Laluan: <span className="font-bold text-zinc-950">{editWifiPassword || '(Tiada kata laluan)'}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200">
+                <button
+                  type="button"
+                  onClick={() => setShowEditWifiModal(false)}
+                  className="px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 font-bold border border-zinc-300 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 border-2 border-zinc-900 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Simpan Maklumat Wi-Fi</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Share Course Modal */}
       {showShareModal && (

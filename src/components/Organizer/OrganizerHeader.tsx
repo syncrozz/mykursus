@@ -67,7 +67,7 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
           </div>
           <span className="hidden md:inline-block text-zinc-600">|</span>
           <span className="hidden md:inline-block text-zinc-400">
-            DCOREV1: Operasi Kursus & Pendaftaran Peserta
+            Operasi Kursus & Pendaftaran Peserta
           </span>
         </div>
 
@@ -81,9 +81,7 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
             title="Tukar Identiti Penganjur untuk Ujian Pengasingan Tenant"
           >
             {orgList.length === 0 ? (
-              <option value={currentOrganizer?.id || 'org-ppki-01'}>
-                {currentOrganizer?.name || 'Pusat Pembangunan Kemahiran Insaniah'} ({currentOrganizer?.id || 'org-ppki-01'})
-              </option>
+              <option value="">Tiada Penganjur Berdaftar</option>
             ) : (
               orgList.map((org) => (
                 <option key={org.id} value={org.id}>

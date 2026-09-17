@@ -22,7 +22,7 @@ export const AccessDeniedNotice: React.FC<AccessDeniedNoticeProps> = ({
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] font-mono font-black uppercase px-2 py-0.5 bg-red-600 text-white">
-              SEKATAN KESELAMATAN DCOREV1
+              SEKATAN KESELAMATAN
             </span>
             <span className="text-xs text-zinc-500 font-mono">RBAC • ISOLATION</span>
           </div>
@@ -36,7 +36,7 @@ export const AccessDeniedNotice: React.FC<AccessDeniedNoticeProps> = ({
           <div className="bg-zinc-50 border border-zinc-200 p-3 mb-6 text-xs text-zinc-600 font-mono">
             <div className="font-bold text-zinc-900 mb-1 flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-zinc-700" />
-              Prinsip Kawalan Akses & Pengasingan DCOREV1:
+              Prinsip Kawalan Akses & Pengasingan:
             </div>
             <ul className="list-disc list-inside space-y-1 text-zinc-600">
               <li>Penganjur A tidak boleh melihat atau mengedit kursus Penganjur B.</li>

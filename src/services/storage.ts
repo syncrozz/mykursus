@@ -22,17 +22,7 @@ import {
   ParticipantLifecycleStatus
 } from '../types';
 import { normalizePhoneNumber, maskPhoneNumber } from '../utils/phoneUtils';
-import { 
-  KIAR_PILOT_ORGANIZER, 
-  KIAR_PILOT_COURSE, 
-  KIAR_PILOT_SCHEDULE_DAYS, 
-  KIAR_PILOT_SESSIONS, 
-  KIAR_PILOT_PARTICIPANTS, 
-  KIAR_PILOT_CHANGE_REQUEST,
-  KIAR_PILOT_ANNOUNCEMENTS,
-  KIAR_PILOT_RESOURCES,
-  KIAR_PILOT_SOURCE_DOCUMENTS
-} from './kiarPilotData';
+import { formatDateRangeDMY } from '../utils/dateFormatter';
 import { ExtractionEngine } from './extractionEngine';
 import {
   syncCourseToFirestore,
@@ -43,11 +33,19 @@ import {
   syncAnnouncementToFirestore,
   deleteAnnouncementFromFirestore,
   syncAttendanceToFirestore,
+  deleteAttendanceFromFirestore,
   syncResourceToFirestore,
   deleteResourceFromFirestore,
+  syncSourceDocumentToFirestore,
+  deleteSourceDocumentFromFirestore,
+  syncOrganizerToFirestore,
+  deleteOrganizerFromFirestore,
   syncParticipantToFirestore,
   syncEnrollmentToFirestore,
   deleteEnrollmentFromFirestore,
+  deleteCourseFromFirestore,
+  deleteParticipantFromFirestore,
+  clearAllFirestoreData,
   pullCoursesFromFirestore,
   pullParticipantsFromFirestore,
   pullCourseSubcollections,
@@ -119,11 +117,7 @@ class PlatformStorageRepository {
 
   private checkInitialization() {
     const isInit = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
-    const wasManuallyCleared = localStorage.getItem('mykursus_manually_cleared') === 'true';
-    const existingCourses = this.getCourses();
-
-    if (!wasManuallyCleared && (!isInit || existingCourses.length === 0)) {
-      this.loadKiarPilot();
+    if (!isInit) {
       localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
     }
     this.initialized = true;
@@ -131,14 +125,163 @@ class PlatformStorageRepository {
     // Immediately trigger background sync with Cloud Firestore
     if (typeof window !== 'undefined') {
       setTimeout(() => {
-        this.syncFromCloud().then(res => {
-          // If cloud was empty but local has data, push local to cloud to ensure incognito tabs can see it
-          if (res.pulledCourses === 0 && res.pulledParticipants === 0 && this.getCourses().length > 0) {
-            this.syncToCloud().catch(err => console.warn('Sync to cloud error:', err));
-          }
-        }).catch(err => console.warn('Background syncFromCloud error:', err));
+        this.syncFromCloud().catch(err => console.warn('Background syncFromCloud error:', err));
       }, 150);
     }
+  }
+
+  // --- Deletion Tracking (DCOREV1 "Empty Means Empty & Deleted Means Deleted") ---
+  public getDeletedCourseIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_course_ids', []);
+  }
+
+  public markCourseAsDeleted(id: string): void {
+    const list = this.getDeletedCourseIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_course_ids', list);
+    }
+  }
+
+  public unmarkCourseAsDeleted(id: string): void {
+    const list = this.getDeletedCourseIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_course_ids', list);
+  }
+
+  public getDeletedParticipantIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_participant_ids', []);
+  }
+
+  public markParticipantAsDeleted(id: string): void {
+    const list = this.getDeletedParticipantIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_participant_ids', list);
+    }
+  }
+
+  public unmarkParticipantAsDeleted(id: string): void {
+    const list = this.getDeletedParticipantIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_participant_ids', list);
+  }
+
+  public getDeletedSessionIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_session_ids', []);
+  }
+
+  public markSessionAsDeleted(id: string): void {
+    const list = this.getDeletedSessionIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_session_ids', list);
+    }
+  }
+
+  public unmarkSessionAsDeleted(id: string): void {
+    const list = this.getDeletedSessionIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_session_ids', list);
+  }
+
+  public getDeletedDayIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_day_ids', []);
+  }
+
+  public markDayAsDeleted(id: string): void {
+    const list = this.getDeletedDayIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_day_ids', list);
+    }
+  }
+
+  public unmarkDayAsDeleted(id: string): void {
+    const list = this.getDeletedDayIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_day_ids', list);
+  }
+
+  public getDeletedAnnouncementIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_announcement_ids', []);
+  }
+
+  public markAnnouncementAsDeleted(id: string): void {
+    const list = this.getDeletedAnnouncementIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_announcement_ids', list);
+    }
+  }
+
+  public unmarkAnnouncementAsDeleted(id: string): void {
+    const list = this.getDeletedAnnouncementIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_announcement_ids', list);
+  }
+
+  public getDeletedResourceIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_resource_ids', []);
+  }
+
+  public markResourceAsDeleted(id: string): void {
+    const list = this.getDeletedResourceIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_resource_ids', list);
+    }
+  }
+
+  public unmarkResourceAsDeleted(id: string): void {
+    const list = this.getDeletedResourceIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_resource_ids', list);
+  }
+
+  public getDeletedEnrollmentIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_enrollment_ids', []);
+  }
+
+  public markEnrollmentAsDeleted(id: string): void {
+    const list = this.getDeletedEnrollmentIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_enrollment_ids', list);
+    }
+  }
+
+  public unmarkEnrollmentAsDeleted(id: string): void {
+    const list = this.getDeletedEnrollmentIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_enrollment_ids', list);
+  }
+
+  public getDeletedAttendanceIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_attendance_ids', []);
+  }
+
+  public markAttendanceAsDeleted(id: string): void {
+    const list = this.getDeletedAttendanceIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_attendance_ids', list);
+    }
+  }
+
+  public unmarkAttendanceAsDeleted(id: string): void {
+    const list = this.getDeletedAttendanceIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_attendance_ids', list);
+  }
+
+  public getDeletedOrganizerIds(): string[] {
+    return getFromStorage<string[]>('mykursus_deleted_organizer_ids', []);
+  }
+
+  public markOrganizerAsDeleted(id: string): void {
+    const list = this.getDeletedOrganizerIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      saveToStorage('mykursus_deleted_organizer_ids', list);
+    }
+  }
+
+  public unmarkOrganizerAsDeleted(id: string): void {
+    const list = this.getDeletedOrganizerIds().filter(x => x !== id);
+    saveToStorage('mykursus_deleted_organizer_ids', list);
   }
 
   // --- Audit Logging ---
@@ -180,16 +323,21 @@ class PlatformStorageRepository {
   public saveOrganizer(organizer: Organizer): void {
     const organizers = this.getOrganizers();
     const index = organizers.findIndex(o => o.id === organizer.id);
+    let updated: Organizer;
     if (index >= 0) {
-      organizers[index] = { ...organizer, updatedAt: new Date().toISOString() };
+      updated = { ...organizer, updatedAt: new Date().toISOString() };
+      organizers[index] = updated;
     } else {
-      organizers.push({ 
+      updated = { 
         ...organizer, 
         createdAt: new Date().toISOString(), 
         updatedAt: new Date().toISOString() 
-      });
+      };
+      organizers.push(updated);
     }
     saveToStorage(STORAGE_KEYS.ORGANIZERS, organizers);
+    this.unmarkOrganizerAsDeleted(organizer.id);
+    syncOrganizerToFirestore(updated).catch(err => console.warn('Firestore sync organizer error:', err));
     this.addAuditLog('ORGANIZER_SAVED', `Organizer "${organizer.name}" (${organizer.code}) dikemaskini/dicipta.`);
   }
 
@@ -207,6 +355,8 @@ class PlatformStorageRepository {
 
     const filtered = organizers.filter(o => o.id !== id);
     saveToStorage(STORAGE_KEYS.ORGANIZERS, filtered);
+    this.markOrganizerAsDeleted(id);
+    deleteOrganizerFromFirestore(id).catch(err => console.warn('Firestore delete organizer error:', err));
     this.addAuditLog('ORGANIZER_DELETED', `Organizer "${target.name}" dipadam secara kekal.`);
     return true;
   }
@@ -225,56 +375,16 @@ class PlatformStorageRepository {
     const cleanSlug = slug.trim().toLowerCase().replace(/^#?\/?course\/?/, '').replace(/\/+$/, '').split('?')[0];
     if (!cleanSlug) return undefined;
 
-    let courses = this.getCourses();
+    const courses = this.getCourses();
     
     // 1. Direct exact match
-    let found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug);
+    const found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug);
     if (found) return found;
 
-    // 2. Recognized aliases for KIAR Pilot Course
-    const kiarAliases = [
-      'kursus-transformasi-kiar-2026',
-      'transformasi-pedagogi-kiar-2026',
-      'transformasi-kiar-2026',
-      'kursus-transformasi-pedagogi-kiar-2026',
-      'kiar-2026',
-      'kiar'
-    ];
-
-    const isKiarTarget = kiarAliases.includes(cleanSlug) || 
-      (cleanSlug.includes('kiar') && (cleanSlug.includes('transformasi') || cleanSlug.includes('pedagogi')));
-
-    if (isKiarTarget) {
-      const existingKiar = courses.find(c => c.id === KIAR_PILOT_COURSE.id);
-      if (existingKiar) {
-        // Ensure slug is synced to the canonical or requested
-        if (existingKiar.slug !== 'kursus-transformasi-kiar-2026') {
-          existingKiar.slug = 'kursus-transformasi-kiar-2026';
-          this.saveCourse(existingKiar);
-        }
-        return existingKiar;
-      } else {
-        this.loadKiarPilot();
-        courses = this.getCourses();
-        return courses.find(c => c.id === KIAR_PILOT_COURSE.id) || KIAR_PILOT_COURSE;
-      }
-    }
-
-    // 3. Fallback: If no courses are loaded yet, load pilot
-    if (courses.length === 0) {
-      this.loadKiarPilot();
-      courses = this.getCourses();
-      found = courses.find(c => c.slug.toLowerCase().trim() === cleanSlug);
-      if (found) return found;
-      if (cleanSlug.includes('kiar')) {
-        return courses.find(c => c.id === KIAR_PILOT_COURSE.id) || KIAR_PILOT_COURSE;
-      }
-    }
-
-    // 4. Fuzzy / partial match across any existing courses
+    // 2. Fuzzy / partial match across existing registered courses
     const partial = courses.find(c => {
-      const s = c.slug.toLowerCase();
-      return s.includes(cleanSlug) || cleanSlug.includes(s);
+      const s = c.slug.toLowerCase().trim();
+      return s === cleanSlug || s.includes(cleanSlug) || cleanSlug.includes(s);
     });
     if (partial) return partial;
 
@@ -282,6 +392,8 @@ class PlatformStorageRepository {
   }
 
   public saveCourse(course: Course): void {
+    this.unmarkCourseAsDeleted(course.id);
+    localStorage.removeItem('mykursus_manually_cleared');
     const courses = this.getCourses();
     
     // Validate slug uniqueness
@@ -309,19 +421,43 @@ class PlatformStorageRepository {
     const target = courses.find(c => c.id === id);
     if (!target) return false;
 
-    // Permanent hard delete per DCOREV1 (Cascades to enrollments, change requests)
+    // Permanent hard delete per DCOREV1
     const filtered = courses.filter(c => c.id !== id);
     saveToStorage(STORAGE_KEYS.COURSES, filtered);
 
-    // Clean enrollments
+    // Track deleted course ID to prevent any stale cloud sync resurrection
+    this.markCourseAsDeleted(id);
+
+    // Cascading cleanups in localStorage
     const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments.filter(e => e.courseId !== id));
 
-    // Clean change requests
+    const scheduleDays = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
+    saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, scheduleDays.filter(d => d.courseId !== id));
+
+    const sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
+    saveToStorage(STORAGE_KEYS.SESSIONS, sessions.filter(s => s.courseId !== id));
+
+    const announcements = getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
+    saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, announcements.filter(a => a.courseId !== id));
+
+    const resources = getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []);
+    saveToStorage(STORAGE_KEYS.RESOURCES, resources.filter(r => r.courseId !== id));
+
+    const sourceDocuments = getFromStorage<SourceDocument[]>(STORAGE_KEYS.SOURCE_DOCUMENTS, []);
+    saveToStorage(STORAGE_KEYS.SOURCE_DOCUMENTS, sourceDocuments.filter(d => d.courseId !== id));
+
+    const attendances = getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []);
+    saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, attendances.filter(a => a.courseId !== id));
+
     const crs = this.getChangeRequests();
     saveToStorage(STORAGE_KEYS.CHANGE_REQUESTS, crs.filter(cr => cr.courseId !== id));
 
     this.addAuditLog('COURSE_DELETED', `Kursus "${target.title}" dipadam secara kekal.`, id, target.title);
+
+    // Synchronize permanent deletion to Firebase Cloud Firestore
+    deleteCourseFromFirestore(id).catch(err => console.warn('Firestore delete course error:', err));
+
     return true;
   }
 
@@ -335,15 +471,40 @@ class PlatformStorageRepository {
     const remaining = courses.filter(c => !idSet.has(c.id));
     saveToStorage(STORAGE_KEYS.COURSES, remaining);
 
-    // Clean cascading enrollments
+    ids.forEach(id => this.markCourseAsDeleted(id));
+
+    // Cascading cleanups in localStorage
     const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments.filter(e => !idSet.has(e.courseId)));
 
-    // Clean cascading change requests
+    const scheduleDays = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
+    saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, scheduleDays.filter(d => !idSet.has(d.courseId)));
+
+    const sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
+    saveToStorage(STORAGE_KEYS.SESSIONS, sessions.filter(s => !idSet.has(s.courseId)));
+
+    const announcements = getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
+    saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, announcements.filter(a => !idSet.has(a.courseId)));
+
+    const resources = getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []);
+    saveToStorage(STORAGE_KEYS.RESOURCES, resources.filter(r => !idSet.has(r.courseId)));
+
+    const sourceDocuments = getFromStorage<SourceDocument[]>(STORAGE_KEYS.SOURCE_DOCUMENTS, []);
+    saveToStorage(STORAGE_KEYS.SOURCE_DOCUMENTS, sourceDocuments.filter(d => !idSet.has(d.courseId)));
+
+    const attendances = getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []);
+    saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, attendances.filter(a => !idSet.has(a.courseId)));
+
     const crs = this.getChangeRequests();
     saveToStorage(STORAGE_KEYS.CHANGE_REQUESTS, crs.filter(cr => !idSet.has(cr.courseId)));
 
-    this.addAuditLog('COURSE_DELETED', `${toDelete.length} kursus dipadam secara pukal mengikut DCOREV1.`, undefined, ids.join(', '));
+    this.addAuditLog('COURSE_DELETED', `${toDelete.length} kursus dipadam secara pukal.`, undefined, ids.join(', '));
+
+    // Persist deletion permanently in Firebase Cloud Firestore
+    ids.forEach(id => {
+      deleteCourseFromFirestore(id).catch(err => console.warn('Firestore bulk delete course error:', err));
+    });
+
     return toDelete.length;
   }
 
@@ -362,7 +523,7 @@ class PlatformStorageRepository {
     this.saveCourse(course);
     this.addAuditLog(
       'COURSE_APPROVED', 
-      `Kursus diluluskan & diterbitkan. Slug: /course/${course.slug}`, 
+      `Kursus diluluskan & diterbitkan. Slug: /${course.slug}`, 
       course.id, 
       course.title
     );
@@ -444,7 +605,7 @@ class PlatformStorageRepository {
     const course = this.getCourseById(courseId);
     if (!course) throw new Error('Kursus tidak dijumpai.');
 
-    const oldRange = `${course.startDate} - ${course.endDate}`;
+    const oldRange = formatDateRangeDMY(course.startDate, course.endDate);
     course.startDate = startDate;
     course.endDate = endDate;
     course.updatedAt = new Date().toISOString();
@@ -452,7 +613,7 @@ class PlatformStorageRepository {
     this.saveCourse(course);
     this.addAuditLog(
       'OFFICIAL_DATES_CHANGED', 
-      `Tarikh rasmi dikemaskini oleh Master Admin dari [${oldRange}] ke [${startDate} - ${endDate}].`, 
+      `Tarikh rasmi dikemaskini oleh Master Admin dari [${oldRange}] ke [${formatDateRangeDMY(startDate, endDate)}].`, 
       course.id, 
       course.title
     );
@@ -519,7 +680,7 @@ class PlatformStorageRepository {
     this.saveCourse(course);
     this.addAuditLog(
       'SLUG_UPDATED', 
-      `Peringatan: Slug awam ditukar dari /course/${oldSlug} ke /course/${cleanSlug}.`, 
+      `Peringatan: Slug awam ditukar dari /${oldSlug} ke /${cleanSlug}.`, 
       course.id, 
       course.title
     );
@@ -841,16 +1002,43 @@ class PlatformStorageRepository {
    */
   public async syncFromCloud(): Promise<{ success: boolean; pulledCourses: number; pulledParticipants: number }> {
     try {
+      const wasManuallyCleared = localStorage.getItem('mykursus_manually_cleared') === 'true';
+      const deletedCourseIds = this.getDeletedCourseIds();
+      const deletedParticipantIds = this.getDeletedParticipantIds();
+      const deletedSessionIds = this.getDeletedSessionIds();
+      const deletedDayIds = this.getDeletedDayIds();
+      const deletedAnnouncementIds = this.getDeletedAnnouncementIds();
+      const deletedResourceIds = this.getDeletedResourceIds();
+      const deletedEnrollmentIds = this.getDeletedEnrollmentIds();
+      const deletedAttendanceIds = this.getDeletedAttendanceIds();
+      const deletedOrganizerIds = this.getDeletedOrganizerIds();
+
       const cloudData = await syncAllCloudDataToLocal();
       if (!cloudData) return { success: false, pulledCourses: 0, pulledParticipants: 0 };
 
+      // CRITICAL PRINCIPLE: "Empty Means Empty"
+      // If user or admin cleared/deleted all data, NEVER resurrect from cloud
+      const currentLocalCourses = this.getCourses();
+      if (wasManuallyCleared || (currentLocalCourses.length === 0 && deletedCourseIds.length > 0)) {
+        if ((cloudData.courses && cloudData.courses.length > 0) || (cloudData.participants && cloudData.participants.length > 0)) {
+          // Permanently purge any residual records in Firestore to keep cloud consistent
+          clearAllFirestoreData().catch(() => {});
+        }
+        return { success: true, pulledCourses: 0, pulledParticipants: 0 };
+      }
+
       let hasUpdates = false;
 
-      // 1. Merge Courses
+      // 1. Merge Courses (Filtering out explicitly deleted courses)
       if (cloudData.courses && cloudData.courses.length > 0) {
         const localCourses = getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []);
         const mergedCourses = [...localCourses];
         for (const cc of cloudData.courses) {
+          if (deletedCourseIds.includes(cc.id)) {
+            // Delete from Firestore so it is permanently cleaned in cloud as well
+            deleteCourseFromFirestore(cc.id).catch(() => {});
+            continue;
+          }
           const idx = mergedCourses.findIndex(c => c.id === cc.id || c.slug === cc.slug);
           if (idx >= 0) {
             mergedCourses[idx] = { ...mergedCourses[idx], ...cc };
@@ -862,11 +1050,15 @@ class PlatformStorageRepository {
         hasUpdates = true;
       }
 
-      // 2. Merge Participants
+      // 2. Merge Participants (Filtering out explicitly deleted participants)
       if (cloudData.participants && cloudData.participants.length > 0) {
         const localParts = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
         const mergedParts = [...localParts];
         for (const cp of cloudData.participants) {
+          if (deletedParticipantIds.includes(cp.id)) {
+            deleteParticipantFromFirestore(cp.id).catch(() => {});
+            continue;
+          }
           const idx = mergedParts.findIndex(p => p.id === cp.id || (cp.phone && normalizePhoneNumber(p.phone) === normalizePhoneNumber(cp.phone)));
           if (idx >= 0) {
             mergedParts[idx] = { ...mergedParts[idx], ...cp };
@@ -883,6 +1075,10 @@ class PlatformStorageRepository {
         const localEnrs = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
         const mergedEnrs = [...localEnrs];
         for (const ce of cloudData.enrollments) {
+          if (deletedCourseIds.includes(ce.courseId) || deletedParticipantIds.includes(ce.participantId) || deletedEnrollmentIds.includes(ce.id)) {
+            deleteEnrollmentFromFirestore(ce.courseId, ce.id).catch(() => {});
+            continue;
+          }
           const idx = mergedEnrs.findIndex(e => e.id === ce.id || (e.courseId === ce.courseId && e.participantId === ce.participantId));
           if (idx >= 0) {
             mergedEnrs[idx] = { ...mergedEnrs[idx], ...ce };
@@ -899,6 +1095,10 @@ class PlatformStorageRepository {
         const localDays = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
         const mergedDays = [...localDays];
         for (const cd of cloudData.scheduleDays) {
+          if (deletedCourseIds.includes(cd.courseId) || deletedDayIds.includes(cd.id)) {
+            deleteScheduleDayFromFirestore(cd.courseId, cd.id).catch(() => {});
+            continue;
+          }
           const idx = mergedDays.findIndex(d => d.id === cd.id || (d.courseId === cd.courseId && d.dayNumber === cd.dayNumber));
           if (idx >= 0) {
             mergedDays[idx] = { ...mergedDays[idx], ...cd };
@@ -915,6 +1115,10 @@ class PlatformStorageRepository {
         const localSessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
         const mergedSessions = [...localSessions];
         for (const cs of cloudData.sessions) {
+          if (deletedCourseIds.includes(cs.courseId) || deletedSessionIds.includes(cs.id)) {
+            deleteSessionFromFirestore(cs.courseId, cs.id).catch(() => {});
+            continue;
+          }
           const idx = mergedSessions.findIndex(s => s.id === cs.id);
           if (idx >= 0) {
             mergedSessions[idx] = { ...mergedSessions[idx], ...cs };
@@ -931,6 +1135,10 @@ class PlatformStorageRepository {
         const localAnn = getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
         const mergedAnn = [...localAnn];
         for (const ca of cloudData.announcements) {
+          if (deletedCourseIds.includes(ca.courseId) || deletedAnnouncementIds.includes(ca.id)) {
+            deleteAnnouncementFromFirestore(ca.courseId, ca.id).catch(() => {});
+            continue;
+          }
           const idx = mergedAnn.findIndex(a => a.id === ca.id);
           if (idx >= 0) {
             mergedAnn[idx] = { ...mergedAnn[idx], ...ca };
@@ -947,6 +1155,10 @@ class PlatformStorageRepository {
         const localRes = getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []);
         const mergedRes = [...localRes];
         for (const cr of cloudData.resources) {
+          if (deletedCourseIds.includes(cr.courseId) || deletedResourceIds.includes(cr.id)) {
+            deleteResourceFromFirestore(cr.courseId, cr.id).catch(() => {});
+            continue;
+          }
           const idx = mergedRes.findIndex(r => r.id === cr.id);
           if (idx >= 0) {
             mergedRes[idx] = { ...mergedRes[idx], ...cr };
@@ -963,6 +1175,10 @@ class PlatformStorageRepository {
         const localAtt = getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []);
         const mergedAtt = [...localAtt];
         for (const ca of cloudData.attendances) {
+          if (deletedCourseIds.includes(ca.courseId) || deletedParticipantIds.includes(ca.participantId) || deletedAttendanceIds.includes(ca.id)) {
+            deleteAttendanceFromFirestore(ca.courseId, ca.id).catch(() => {});
+            continue;
+          }
           const idx = mergedAtt.findIndex(a => a.id === ca.id);
           if (idx >= 0) {
             mergedAtt[idx] = { ...mergedAtt[idx], ...ca };
@@ -1232,7 +1448,7 @@ class PlatformStorageRepository {
     if (!access.allowed) throw new Error(access.reason);
 
     const currentValue = targetField === 'DATES' 
-      ? `${course.startDate} to ${course.endDate}` 
+      ? formatDateRangeDMY(course.startDate, course.endDate) 
       : course.venueName;
 
     const cr: ApprovalChangeRequest = {
@@ -1279,6 +1495,7 @@ class PlatformStorageRepository {
       days.push(day);
     }
     saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, days);
+    this.unmarkDayAsDeleted(day.id);
     syncScheduleDayToFirestore(day).catch(err => console.warn('Firestore sync day error:', err));
   }
 
@@ -1290,6 +1507,7 @@ class PlatformStorageRepository {
 
     const days = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []);
     saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, days.filter(d => d.id !== id));
+    this.markDayAsDeleted(id);
     deleteScheduleDayFromFirestore(courseId, id).catch(err => console.warn('Firestore delete day error:', err));
   }
 
@@ -1314,6 +1532,7 @@ class PlatformStorageRepository {
       sessions.push(updatedSession);
     }
     saveToStorage(STORAGE_KEYS.SESSIONS, sessions);
+    this.unmarkSessionAsDeleted(updatedSession.id);
     syncSessionToFirestore(updatedSession).catch(err => console.warn('Firestore sync session error:', err));
 
     this.addAuditLog(
@@ -1334,6 +1553,7 @@ class PlatformStorageRepository {
     const sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
     const target = sessions.find(s => s.id === id);
     saveToStorage(STORAGE_KEYS.SESSIONS, sessions.filter(s => s.id !== id));
+    this.markSessionAsDeleted(id);
     deleteSessionFromFirestore(courseId, id).catch(err => console.warn('Firestore delete session error:', err));
 
     if (target) {
@@ -1496,6 +1716,8 @@ class PlatformStorageRepository {
     }
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments);
 
+    this.unmarkParticipantAsDeleted(finalParticipant.id);
+    this.unmarkEnrollmentAsDeleted(finalEnrollment.id);
     syncParticipantToFirestore(finalParticipant).catch(err => console.warn('Firestore sync participant error:', err));
     syncEnrollmentToFirestore(finalEnrollment).catch(err => console.warn('Firestore sync enrollment error:', err));
 
@@ -1518,14 +1740,17 @@ class PlatformStorageRepository {
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, filteredEnrs);
 
     if (targetEnr) {
+      this.markEnrollmentAsDeleted(targetEnr.id);
       deleteEnrollmentFromFirestore(courseId, targetEnr.id).catch(err => console.warn('Firestore delete enrollment error:', err));
     }
 
-    // If this participant has no other courses, clean from participants list
+    // If this participant has no other courses, clean from participants list and Firestore
     const otherCourses = filteredEnrs.filter(e => e.participantId === participantId);
     if (otherCourses.length === 0) {
       const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
       saveToStorage(STORAGE_KEYS.PARTICIPANTS, participants.filter(p => p.id !== participantId));
+      this.markParticipantAsDeleted(participantId);
+      deleteParticipantFromFirestore(participantId).catch(err => console.warn('Firestore delete participant error:', err));
     }
   }
 
@@ -1550,6 +1775,7 @@ class PlatformStorageRepository {
 
     // Sync deletion to Firestore
     for (const enr of targetEnrs) {
+      this.markEnrollmentAsDeleted(enr.id);
       deleteEnrollmentFromFirestore(courseId, enr.id).catch(err => console.warn('Firestore bulk delete enrollment error:', err));
     }
 
@@ -1559,11 +1785,15 @@ class PlatformStorageRepository {
     const cleanedParticipants = participants.filter(p => {
       if (!idSet.has(p.id)) return true;
       const hasOther = allRemainingEnrs.some(e => e.participantId === p.id);
+      if (!hasOther) {
+        this.markParticipantAsDeleted(p.id);
+        deleteParticipantFromFirestore(p.id).catch(err => console.warn('Firestore delete participant error:', err));
+      }
       return hasOther;
     });
     saveToStorage(STORAGE_KEYS.PARTICIPANTS, cleanedParticipants);
 
-    this.addAuditLog('PARTICIPANT_BULK_DELETED', `${targetEnrs.length} peserta dipadam secara pukal mengikut DCOREV1 ("Deleted means Deleted").`, courseId);
+    this.addAuditLog('PARTICIPANT_BULK_DELETED', `${targetEnrs.length} peserta dipadam secara pukal ("Deleted means Deleted").`, courseId);
     return targetEnrs.length;
   }
 
@@ -1825,6 +2055,8 @@ class PlatformStorageRepository {
     }
 
     saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, all);
+    this.unmarkAttendanceAsDeleted(saved.id);
+    syncAttendanceToFirestore(saved).catch(err => console.warn('Firestore sync attendance error:', err));
 
     // Synchronize CourseEnrollment.attendanceConfirmed if marked PRESENT
     if (record.status === 'PRESENT') {
@@ -1916,6 +2148,11 @@ class PlatformStorageRepository {
     saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, all);
     saveToStorage(STORAGE_KEYS.ENROLLMENTS, enrollments);
 
+    records.forEach(rec => {
+      this.unmarkAttendanceAsDeleted(rec.id);
+      syncAttendanceToFirestore(rec).catch(err => console.warn('Firestore sync attendance error:', err));
+    });
+
     const course = this.getCourseById(courseId);
     this.addAuditLog(
       'ATTENDANCE_BULK_RECORDED',
@@ -1936,6 +2173,8 @@ class PlatformStorageRepository {
     const all = getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []);
     const filtered = all.filter(a => a.id !== recordId);
     saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, filtered);
+    this.markAttendanceAsDeleted(recordId);
+    deleteAttendanceFromFirestore(courseId, recordId).catch(err => console.warn('Firestore delete attendance error:', err));
 
     const course = this.getCourseById(courseId);
     this.addAuditLog(
@@ -2055,6 +2294,7 @@ class PlatformStorageRepository {
       list.push(updated);
     }
     saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, list);
+    this.unmarkAnnouncementAsDeleted(updated.id);
     syncAnnouncementToFirestore(updated).catch(err => console.warn('Firestore sync announcement error:', err));
 
     this.addAuditLog(
@@ -2077,6 +2317,7 @@ class PlatformStorageRepository {
     const list = getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []);
     const target = list.find(a => a.id === id);
     saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, list.filter(a => a.id !== id));
+    this.markAnnouncementAsDeleted(id);
     deleteAnnouncementFromFirestore(courseId, id).catch(err => console.warn('Firestore delete announcement error:', err));
 
     if (target) {
@@ -2148,6 +2389,7 @@ class PlatformStorageRepository {
       list.push(updated);
     }
     saveToStorage(STORAGE_KEYS.RESOURCES, list);
+    this.unmarkResourceAsDeleted(updated.id);
     syncResourceToFirestore(updated).catch(err => console.warn('Firestore sync resource error:', err));
 
     this.addAuditLog(
@@ -2170,6 +2412,7 @@ class PlatformStorageRepository {
     const list = getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []);
     const target = list.find(r => r.id === id);
     saveToStorage(STORAGE_KEYS.RESOURCES, list.filter(r => r.id !== id));
+    this.markResourceAsDeleted(id);
     deleteResourceFromFirestore(courseId, id).catch(err => console.warn('Firestore delete resource error:', err));
 
     if (target) {
@@ -2237,6 +2480,7 @@ class PlatformStorageRepository {
       list.push(updated);
     }
     saveToStorage(STORAGE_KEYS.SOURCE_DOCUMENTS, list);
+    syncSourceDocumentToFirestore(updated).catch(err => console.warn('Firestore sync source doc error:', err));
 
     this.addAuditLog(
       isNew ? 'SOURCE_DOCUMENT_UPLOADED' : 'SOURCE_DOCUMENT_UPDATED',
@@ -2258,6 +2502,7 @@ class PlatformStorageRepository {
     const list = getFromStorage<SourceDocument[]>(STORAGE_KEYS.SOURCE_DOCUMENTS, []);
     const target = list.find(d => d.id === id);
     saveToStorage(STORAGE_KEYS.SOURCE_DOCUMENTS, list.filter(d => d.id !== id));
+    deleteSourceDocumentFromFirestore(courseId, id).catch(err => console.warn('Firestore delete source doc error:', err));
 
     if (target) {
       this.addAuditLog(
@@ -2525,123 +2770,8 @@ class PlatformStorageRepository {
     return { importedCount };
   }
 
-  // --- Pilot Validation Seed & Reset Helpers ---
-  public loadKiarPilot(): void {
-    localStorage.removeItem('mykursus_manually_cleared');
-    // 1. Save Organizer
-    const organizers = this.getOrganizers();
-    if (!organizers.some(o => o.id === KIAR_PILOT_ORGANIZER.id)) {
-      organizers.push(KIAR_PILOT_ORGANIZER);
-      saveToStorage(STORAGE_KEYS.ORGANIZERS, organizers);
-    }
-
-    // 2. Save Course
-    const courses = this.getCourses();
-    const existingCourseIdx = courses.findIndex(c => c.id === KIAR_PILOT_COURSE.id);
-    if (existingCourseIdx >= 0) {
-      courses[existingCourseIdx] = KIAR_PILOT_COURSE;
-    } else {
-      courses.push(KIAR_PILOT_COURSE);
-    }
-    saveToStorage(STORAGE_KEYS.COURSES, courses);
-
-    // 3. Save Schedule Days & Sessions
-    const scheduleDays = getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, [])
-      .filter(s => s.courseId !== KIAR_PILOT_COURSE.id)
-      .concat(KIAR_PILOT_SCHEDULE_DAYS);
-    saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, scheduleDays);
-
-    const sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, [])
-      .filter(s => s.courseId !== KIAR_PILOT_COURSE.id)
-      .concat(KIAR_PILOT_SESSIONS);
-    saveToStorage(STORAGE_KEYS.SESSIONS, sessions);
-
-    // 4. Save Participants & Enrollments
-    const existingParts = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
-    const existingEnrs = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, [])
-      .filter(e => e.courseId !== KIAR_PILOT_COURSE.id);
-
-    KIAR_PILOT_PARTICIPANTS.forEach(item => {
-      if (!existingParts.some(p => p.id === item.participant.id)) {
-        existingParts.push(item.participant);
-      }
-      existingEnrs.push(item.enrollment);
-    });
-
-    saveToStorage(STORAGE_KEYS.PARTICIPANTS, existingParts);
-    saveToStorage(STORAGE_KEYS.ENROLLMENTS, existingEnrs);
-
-    // 5. Save Sample Change Request
-    const crs = this.getChangeRequests().filter(cr => cr.id !== KIAR_PILOT_CHANGE_REQUEST.id);
-    crs.push(KIAR_PILOT_CHANGE_REQUEST);
-    saveToStorage(STORAGE_KEYS.CHANGE_REQUESTS, crs);
-
-    // 6. Save Sample Announcements
-    const anns = getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, [])
-      .filter(a => a.courseId !== KIAR_PILOT_COURSE.id)
-      .concat(KIAR_PILOT_ANNOUNCEMENTS);
-    saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, anns);
-
-    // 7. Save Sample Resources & Slides
-    const resList = getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, [])
-      .filter(r => r.courseId !== KIAR_PILOT_COURSE.id)
-      .concat(KIAR_PILOT_RESOURCES);
-    saveToStorage(STORAGE_KEYS.RESOURCES, resList);
-
-    // 8. Save Sample Source Documents (PART 07)
-    const srcDocs = getFromStorage<SourceDocument[]>(STORAGE_KEYS.SOURCE_DOCUMENTS, [])
-      .filter(d => d.courseId !== KIAR_PILOT_COURSE.id)
-      .concat(KIAR_PILOT_SOURCE_DOCUMENTS);
-    saveToStorage(STORAGE_KEYS.SOURCE_DOCUMENTS, srcDocs);
-
-    // 9. Seed Realistic Pilot Attendance Records (PART 09)
-    const pilotAttendance: AttendanceRecord[] = [];
-    const days = [
-      { dayNumber: 1, date: '2026-09-09' },
-      { dayNumber: 2, date: '2026-09-10' },
-      { dayNumber: 3, date: '2026-09-11' }
-    ];
-
-    days.forEach(day => {
-      KIAR_PILOT_PARTICIPANTS.forEach(item => {
-        // Realistic scenario: on Day 2, participant p-05 was excused for official duty
-        const isExcused = day.dayNumber === 2 && item.participant.id === 'p-05';
-        pilotAttendance.push({
-          id: `att-kiar-${item.participant.id}-day-${day.dayNumber}`,
-          courseId: KIAR_PILOT_COURSE.id,
-          participantId: item.participant.id,
-          enrollmentId: item.enrollment.id,
-          attendanceLevel: 'DAILY',
-          dayNumber: day.dayNumber,
-          date: day.date,
-          status: isExcused ? 'EXCUSED' : 'PRESENT',
-          checkInMethod: 'ORGANIZER_MANUAL',
-          markedAt: `${day.date}T08:15:00Z`,
-          markedByUserId: 'user-org-01',
-          markedByUserName: 'Urus Setia PPKI',
-          notes: isExcused ? 'Pelepasan rasmi tugas fakulti' : undefined,
-          updatedAt: `${day.date}T08:15:00Z`
-        });
-      });
-    });
-
-    const otherAttRecords = getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, [])
-      .filter(a => a.courseId !== KIAR_PILOT_COURSE.id);
-    saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, [...otherAttRecords, ...pilotAttendance]);
-
-    this.addAuditLog(
-      'PILOT_DATASET_LOADED',
-      'Data Penanda Aras Pilot KIAR 2026 (22 peserta, rekod kehadiran 3 hari, 8 sesi, penginapan, pengumuman, bahan, dokumen sumber PPKI) dimuatkan untuk audit pengesahan.',
-      KIAR_PILOT_COURSE.id,
-      KIAR_PILOT_COURSE.title
-    );
-
-    // Sync pilot data to Cloud Firestore in the background for cross-tab & incognito access
-    this.syncToCloud().catch(err => console.warn('Background syncToCloud error after loadKiarPilot:', err));
-  }
-
   public clearAllData(): void {
-    // Purge everything cleanly per DCOREV1 "Deleted Means Deleted"
+    // Purge everything cleanly per DCOREV1 "Deleted Means Deleted" & "Empty Means Empty"
     localStorage.setItem('mykursus_manually_cleared', 'true');
     saveToStorage(STORAGE_KEYS.COURSES, []);
     saveToStorage(STORAGE_KEYS.ORGANIZERS, []);
@@ -2655,6 +2785,18 @@ class PlatformStorageRepository {
     saveToStorage(STORAGE_KEYS.RESOURCES, []);
     saveToStorage(STORAGE_KEYS.SOURCE_DOCUMENTS, []);
     saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, []);
+    saveToStorage('mykursus_deleted_course_ids', []);
+    saveToStorage('mykursus_deleted_participant_ids', []);
+    saveToStorage('mykursus_deleted_session_ids', []);
+    saveToStorage('mykursus_deleted_day_ids', []);
+    saveToStorage('mykursus_deleted_announcement_ids', []);
+    saveToStorage('mykursus_deleted_resource_ids', []);
+    saveToStorage('mykursus_deleted_enrollment_ids', []);
+    saveToStorage('mykursus_deleted_attendance_ids', []);
+    saveToStorage('mykursus_deleted_organizer_ids', []);
+
+    // Purge all courses, subcollections, and participants in Cloud Firestore permanently
+    clearAllFirestoreData().catch(err => console.warn('Firestore clearAllFirestoreData error:', err));
   }
 }
 

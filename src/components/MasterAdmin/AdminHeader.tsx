@@ -7,7 +7,6 @@ import {
   Layers, 
   GitPullRequest, 
   History, 
-  Database,
   Trash2,
   AlertTriangle
 } from 'lucide-react';
@@ -16,10 +15,9 @@ import { UserRole } from '../../types';
 interface AdminHeaderProps {
   currentRole: UserRole;
   onRoleChange: (role: UserRole) => void;
-  activeView: 'dashboard' | 'courses' | 'organizers' | 'changes' | 'audit';
-  onNavigate: (view: 'dashboard' | 'courses' | 'organizers' | 'changes' | 'audit') => void;
+  activeView: 'dashboard' | 'courses' | 'organizers' | 'changes' | 'audit' | 'architecture';
+  onNavigate: (view: 'dashboard' | 'courses' | 'organizers' | 'changes' | 'audit' | 'architecture') => void;
   onLock: () => void;
-  onLoadPilot: () => void;
   onClearAll: () => void;
   pendingCount: number;
   changesCount: number;
@@ -31,7 +29,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   activeView,
   onNavigate,
   onLock,
-  onLoadPilot,
   onClearAll,
   pendingCount,
   changesCount,
@@ -48,9 +45,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono font-bold tracking-wider text-blue-400 uppercase">
                 Platform Governance
-              </span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-zinc-800 text-zinc-300 uppercase tracking-widest">
-                DCOREV1
               </span>
             </div>
             <h2 className="text-xl font-black uppercase tracking-tight text-white">
@@ -76,16 +70,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             </select>
           </div>
 
-          {/* Quick Database Test Utilities */}
+          {/* Database Clear Utility */}
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={onLoadPilot}
-              title="Muatkan Data Penanda Aras Pilot KIAR 2026"
-              className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors"
-            >
-              <Database className="w-3 h-3 text-blue-400" />
-              <span>Muat Pilot KIAR</span>
-            </button>
             <button
               onClick={onClearAll}
               title="Kosongkan Semua Data untuk Ujian Keadaan Kosong"
@@ -110,7 +96,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         <div className="bg-amber-950/70 border border-amber-600 p-3 text-amber-200 text-xs flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
           <span>
-            <strong>PERHATIAN KESELAMATAN:</strong> Anda sedang meninjau sebagai <strong>{currentRole}</strong>. Mengikut DCOREV1, sebarang tindakan Master Admin akan ditolak secara automatik!
+            <strong>PERHATIAN KESELAMATAN:</strong> Anda sedang meninjau sebagai <strong>{currentRole}</strong>. Sebarang tindakan Master Admin akan ditolak secara automatik!
           </span>
         </div>
       )}
@@ -185,6 +171,18 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         >
           <History className="w-3.5 h-3.5" />
           <span>Log Audit Tadbir Urus</span>
+        </button>
+
+        <button
+          onClick={() => onNavigate('architecture')}
+          className={`px-3.5 py-2 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-2 ${
+            activeView === 'architecture'
+              ? 'bg-white text-zinc-900 border-white'
+              : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-750 hover:text-white'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5 text-blue-400" />
+          <span>Seni Bina Sistem</span>
         </button>
       </div>
     </div>

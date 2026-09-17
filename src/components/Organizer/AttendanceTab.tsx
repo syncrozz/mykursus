@@ -30,6 +30,7 @@ import {
   ParticipantLifecycleStatus,
   UserAuthContext
 } from '../../types';
+import { formatDateDMY } from '../../utils/dateFormatter';
 
 interface AttendanceTabProps {
   course: Course;
@@ -532,7 +533,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                 >
                   <span>Hari {d.dayNumber}</span>
                   <span className="text-[10px] ml-1.5 opacity-80 font-normal font-mono">
-                    ({d.date || 'Tarikh Belum Ditetapkan'})
+                    ({formatDateDMY(d.date) || 'Tarikh Belum Ditetapkan'})
                   </span>
                 </button>
               ))}
@@ -1047,7 +1048,7 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                   </h3>
                 </div>
                 <p className="text-xs text-zinc-600 mt-1 max-w-2xl leading-relaxed">
-                  Tentukan syarat kelayakan sijil dan penamatan kursus. Mengikut DCOREV1, status &quot;TAMAT KURSUS&quot; 
+                  Tentukan syarat kelayakan sijil dan penamatan kursus. Status &quot;TAMAT KURSUS&quot; 
                   tidak diubah secara automatik tanpa pengesahan urus setia dan pematuhan syarat kehadiran minimum.
                 </p>
               </div>
@@ -1111,8 +1112,8 @@ export const AttendanceTab: React.FC<AttendanceTabProps> = ({
                     {sortedDays.map(d => (
                       <th key={d.id} className="p-3 text-center">
                         Hari {d.dayNumber}
-                        <div className="text-[9px] text-zinc-500 font-normal">
-                          {d.date ? d.date.split('-').slice(1).join('/') : ''}
+                        <div className="text-[9px] text-zinc-500 font-normal font-mono">
+                          {d.date ? formatDateDMY(d.date) : ''}
                         </div>
                       </th>
                     ))}

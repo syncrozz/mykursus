@@ -22,6 +22,7 @@ import {
 import { ScheduleDay, SessionItem, Course, Announcement } from '../../types';
 import { Bell } from 'lucide-react';
 import { exportSessionsToCSV, downloadSessionCsvTemplate } from '../../utils/scheduleCsvPortability';
+import { formatDateDMY } from '../../utils/dateFormatter';
 import { ImportSessionCSVModal } from './ImportSessionCSVModal';
 
 interface ScheduleTabProps {
@@ -261,7 +262,7 @@ export const ScheduleTab: React.FC<ScheduleTabProps> = ({
               }`}
             >
               <span>Hari {day.dayNumber}</span>
-              <span className="ml-1.5 text-[10px] opacity-75 font-mono">({day.date})</span>
+              <span className="ml-1.5 text-[10px] opacity-75 font-mono">({formatDateDMY(day.date)})</span>
             </button>
           ))}
 

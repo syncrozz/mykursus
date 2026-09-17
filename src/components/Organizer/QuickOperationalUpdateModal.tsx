@@ -426,7 +426,7 @@ export const QuickOperationalUpdateModal: React.FC<QuickOperationalUpdateModalPr
                     className="w-4 h-4 text-blue-600 rounded border-zinc-300 focus:ring-blue-500"
                   />
                   <span>
-                    Kemaskini jadual rasmi sesi ini secara automatik (DCOREV1 Single Authoritative Source)
+                    Kemaskini jadual rasmi sesi ini secara automatik (Single Authoritative Source)
                   </span>
                 </label>
               </div>
@@ -556,7 +556,7 @@ export const QuickOperationalUpdateModal: React.FC<QuickOperationalUpdateModalPr
                   Pratonton Paparan Peserta (Participant Live View):
                 </span>
                 <span className="text-[10px] font-mono bg-zinc-200 px-2 py-0.5 text-zinc-800">
-                  /course/{course.slug}
+                  /{course.slug}
                 </span>
               </div>
 

@@ -30,6 +30,7 @@ import {
   ApprovalChangeRequest,
   UserRole
 } from '../../types';
+import { formatDateDMY, formatDateRangeDMY } from '../../utils/dateFormatter';
 
 interface CourseDetailReviewProps {
   course: Course;
@@ -301,7 +302,7 @@ export const CourseDetailReview: React.FC<CourseDetailReviewProps> = ({
 
                 {!editingDates ? (
                   <p className="font-mono text-sm font-bold text-zinc-950">
-                    {course.startDate} hingga {course.endDate}
+                    {formatDateRangeDMY(course.startDate, course.endDate)}
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 gap-2 pt-1">
@@ -489,7 +490,7 @@ export const CourseDetailReview: React.FC<CourseDetailReviewProps> = ({
                     <div key={day.id} className="border border-zinc-300 p-3 bg-zinc-50">
                       <div className="flex items-center justify-between border-b border-zinc-300 pb-1.5 mb-2">
                         <span className="text-xs font-bold uppercase text-zinc-900">
-                          Hari {day.dayNumber} ({day.date})
+                          Hari {day.dayNumber} ({formatDateDMY(day.date)})
                         </span>
                         <span className="text-[10px] text-zinc-500 italic">{day.theme}</span>
                       </div>
@@ -627,7 +628,7 @@ export const CourseDetailReview: React.FC<CourseDetailReviewProps> = ({
 
             <div className="p-3 bg-zinc-50 border border-zinc-300 font-mono text-xs">
               <span className="text-zinc-500 text-[10px] block uppercase font-bold">Pautan URL Awam:</span>
-              <span className="text-blue-700 font-bold break-all">/course/{course.slug}</span>
+              <span className="text-blue-700 font-bold break-all">/{course.slug}</span>
             </div>
 
             {slugError && (

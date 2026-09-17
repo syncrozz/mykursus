@@ -79,9 +79,14 @@ export async function testFirebaseConnection(): Promise<{ success: boolean; mess
     console.log('✅ Firebase Firestore connection verified successfully');
     return { success: true, message: 'Sambungan Firebase Firestore berjaya' };
   } catch (error: any) {
-    if (error?.message?.includes('the client is offline')) {
-      console.warn('⚠️ Firebase: client is offline or network restricted');
-      return { success: false, message: 'Pelayan luar talian' };
+    if (
+      error?.code === 'unavailable' || 
+      error?.message?.includes('the client is offline') ||
+      error?.message?.includes('Could not reach') ||
+      error?.message?.includes('unavailable')
+    ) {
+      console.warn('⚠️ Firebase: client is offline or network restricted, operating in offline cache mode');
+      return { success: false, message: 'Pelayan di luar talian (mod cache aktif)' };
     }
     // Jika dokumen test tidak wujud atau permission granted, ia tetap sah bahawa sambungan hidup
     console.log('ℹ️ Firebase Firestore responding:', error?.code || error?.message);
@@ -121,8 +126,12 @@ export async function syncCourseToFirestore(course: any): Promise<void> {
       ...course,
       updatedAt: course.updatedAt || new Date().toISOString(),
     }, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+  } catch (error: any) {
+    if (error?.code === 'unavailable' || error?.message?.includes('unavailable')) {
+      console.warn('Firestore offline, queued locally for course:', course.id);
+      return;
+    }
+    console.warn('Firestore sync course error:', error);
   }
 }
 
@@ -134,8 +143,12 @@ export async function syncSessionToFirestore(session: any): Promise<void> {
       ...session,
       updatedAt: session.updatedAt || new Date().toISOString(),
     }, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+  } catch (error: any) {
+    if (error?.code === 'unavailable' || error?.message?.includes('unavailable')) {
+      console.warn('Firestore offline, queued locally for session:', session.id);
+      return;
+    }
+    console.warn('Firestore sync session error:', error);
   }
 }
 
@@ -143,8 +156,11 @@ export async function deleteSessionFromFirestore(courseId: string, sessionId: st
   const path = `courses/${courseId}/sessions/${sessionId}`;
   try {
     await deleteDoc(doc(db, 'courses', courseId, 'sessions', sessionId));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+  } catch (error: any) {
+    if (error?.code === 'unavailable' || error?.message?.includes('unavailable')) {
+      return;
+    }
+    console.warn('Firestore delete session error:', error);
   }
 }
 
@@ -155,8 +171,12 @@ export async function syncScheduleDayToFirestore(day: any): Promise<void> {
     await setDoc(doc(db, 'courses', day.courseId, 'scheduleDays', day.id), {
       ...day,
     }, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+  } catch (error: any) {
+    if (error?.code === 'unavailable' || error?.message?.includes('unavailable')) {
+      console.warn('Firestore offline, queued locally for scheduleDay:', day.id);
+      return;
+    }
+    console.warn('Firestore sync scheduleDay error:', error);
   }
 }
 
@@ -164,8 +184,11 @@ export async function deleteScheduleDayFromFirestore(courseId: string, dayId: st
   const path = `courses/${courseId}/scheduleDays/${dayId}`;
   try {
     await deleteDoc(doc(db, 'courses', courseId, 'scheduleDays', dayId));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+  } catch (error: any) {
+    if (error?.code === 'unavailable' || error?.message?.includes('unavailable')) {
+      return;
+    }
+    console.warn('Firestore delete scheduleDay error:', error);
   }
 }
 
@@ -202,6 +225,15 @@ export async function syncAttendanceToFirestore(attendance: any): Promise<void> 
   }
 }
 
+export async function deleteAttendanceFromFirestore(courseId: string, attendanceId: string): Promise<void> {
+  if (!courseId || !attendanceId) return;
+  try {
+    await deleteDoc(doc(db, 'courses', courseId, 'attendances', attendanceId));
+  } catch (error) {
+    console.warn('Firestore delete attendance error:', error);
+  }
+}
+
 export async function syncResourceToFirestore(resource: any): Promise<void> {
   if (!resource?.id || !resource?.courseId) return;
   const path = `courses/${resource.courseId}/resources/${resource.id}`;
@@ -220,6 +252,48 @@ export async function deleteResourceFromFirestore(courseId: string, resourceId: 
     await deleteDoc(doc(db, 'courses', courseId, 'resources', resourceId));
   } catch (error) {
     console.warn('Firestore delete resource error:', error);
+  }
+}
+
+export async function syncSourceDocumentToFirestore(sourceDoc: any): Promise<void> {
+  if (!sourceDoc?.id || !sourceDoc?.courseId) return;
+  try {
+    await setDoc(doc(db, 'courses', sourceDoc.courseId, 'sourceDocuments', sourceDoc.id), {
+      ...sourceDoc,
+      updatedAt: sourceDoc.updatedAt || new Date().toISOString(),
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Firestore sync source document error:', error);
+  }
+}
+
+export async function deleteSourceDocumentFromFirestore(courseId: string, docId: string): Promise<void> {
+  if (!courseId || !docId) return;
+  try {
+    await deleteDoc(doc(db, 'courses', courseId, 'sourceDocuments', docId));
+  } catch (error) {
+    console.warn('Firestore delete source document error:', error);
+  }
+}
+
+export async function syncOrganizerToFirestore(organizer: any): Promise<void> {
+  if (!organizer?.id) return;
+  try {
+    await setDoc(doc(db, 'organizers', organizer.id), {
+      ...organizer,
+      updatedAt: organizer.updatedAt || new Date().toISOString(),
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Firestore sync organizer error:', error);
+  }
+}
+
+export async function deleteOrganizerFromFirestore(organizerId: string): Promise<void> {
+  if (!organizerId) return;
+  try {
+    await deleteDoc(doc(db, 'organizers', organizerId));
+  } catch (error) {
+    console.warn('Firestore delete organizer error:', error);
   }
 }
 
@@ -254,6 +328,56 @@ export async function deleteEnrollmentFromFirestore(courseId: string, enrollment
     console.warn('Firestore delete enrollment error:', error);
   }
 }
+
+export async function deleteParticipantFromFirestore(participantId: string): Promise<void> {
+  if (!participantId) return;
+  const path = `participants/${participantId}`;
+  try {
+    await deleteDoc(doc(db, 'participants', participantId));
+  } catch (error) {
+    console.warn('Firestore delete participant error:', error);
+  }
+}
+
+export async function deleteCourseFromFirestore(courseId: string): Promise<void> {
+  if (!courseId) return;
+  try {
+    // Clean all subcollections belonging to this course
+    const subcollections = ['sessions', 'scheduleDays', 'announcements', 'resources', 'enrollments', 'attendances', 'sourceDocuments'];
+    for (const subName of subcollections) {
+      try {
+        const subSnap = await getDocs(collection(db, 'courses', courseId, subName));
+        const deletePromises = subSnap.docs.map(d => deleteDoc(d.ref));
+        await Promise.all(deletePromises);
+      } catch (err) {
+        console.warn(`Error deleting subcollection ${subName} for course ${courseId}:`, err);
+      }
+    }
+
+    // Delete the root course document
+    await deleteDoc(doc(db, 'courses', courseId));
+  } catch (error) {
+    console.warn('Firestore delete course error:', error);
+  }
+}
+
+export async function clearAllFirestoreData(): Promise<void> {
+  try {
+    // 1. Delete all courses and nested subcollections
+    const coursesSnap = await getDocs(collection(db, 'courses'));
+    for (const courseDoc of coursesSnap.docs) {
+      await deleteCourseFromFirestore(courseDoc.id);
+    }
+
+    // 2. Delete all participants
+    const participantsSnap = await getDocs(collection(db, 'participants'));
+    const partDeletes = participantsSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(partDeletes);
+  } catch (error) {
+    console.warn('Firestore clearAllFirestoreData error:', error);
+  }
+}
+
 
 // ==========================================
 // Cloud Firestore Pull & Query Functions

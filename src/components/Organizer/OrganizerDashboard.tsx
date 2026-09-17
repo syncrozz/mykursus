@@ -26,6 +26,7 @@ import {
   ApprovalStatus, 
   Organizer 
 } from '../../types';
+import { formatDateRangeDMY } from '../../utils/dateFormatter';
 
 interface OrganizerDashboardProps {
   currentOrganizer?: Organizer;
@@ -34,7 +35,6 @@ interface OrganizerDashboardProps {
   onSelectCourse: (course: Course) => void;
   onOpenCreateModal: () => void;
   onOpenPublicPreview: (course: Course) => void;
-  onLoadPilot: () => void;
   onDeleteCourse?: (courseId: string) => void;
   onBulkDeleteCourses?: (courseIds: string[]) => void;
 }
@@ -46,7 +46,6 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
   onSelectCourse,
   onOpenCreateModal,
   onOpenPublicPreview,
-  onLoadPilot,
   onDeleteCourse,
   onBulkDeleteCourses,
 }) => {
@@ -387,16 +386,6 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
               <PlusCircle className="w-4 h-4" />
               <span>Cipta Kursus Pertama Anda</span>
             </button>
-
-            {organizerCourses.length === 0 && currentOrganizer?.id === 'org-ppki-01' && (
-              <button
-                onClick={onLoadPilot}
-                className="px-4 py-2.5 bg-amber-100 text-amber-900 border-2 border-amber-600 text-xs font-bold hover:bg-amber-200 flex items-center gap-1.5"
-              >
-                <Sparkles className="w-4 h-4 text-amber-700" />
-                <span>Muat Data Penanda Aras Pilot KIAR 2026</span>
-              </button>
-            )}
           </div>
         </div>
       ) : (
@@ -441,7 +430,7 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
                             </span>
                           )}
                           <span className="text-[10px] font-mono px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 font-semibold truncate max-w-[200px]">
-                            /course/{course.slug}
+                            /{course.slug}
                           </span>
                         </div>
                         <h3 className="text-base sm:text-lg font-black text-zinc-900 leading-snug">
@@ -482,7 +471,7 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                       <span className="font-mono text-[11px] truncate">
-                        {course.startDate} – {course.endDate}
+                        {formatDateRangeDMY(course.startDate, course.endDate, '–')}
                       </span>
                     </div>
 
@@ -566,7 +555,7 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
                         });
                       }}
                       className="p-1.5 text-zinc-500 hover:text-red-700 hover:bg-red-50 border border-zinc-300 hover:border-red-400 transition-all cursor-pointer"
-                      title="Padam Kursus Ini (DCOREV1)"
+                      title="Padam Kursus Ini"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -606,7 +595,7 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
                   {deleteModal.title}
                 </h3>
                 <p className="text-[10px] font-mono font-bold text-red-700 uppercase tracking-wider">
-                  DCOREV1: Deleted Means Deleted
+                  Deleted Means Deleted
                 </p>
               </div>
             </div>

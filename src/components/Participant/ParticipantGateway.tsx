@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Compass, AlertCircle, ArrowRight, BookOpen, CheckCircle } from 'lucide-react';
 import { Course } from '../../types';
 import { platformStorage } from '../../services/storage';
+import { formatDateRangeDMY } from '../../utils/dateFormatter';
 import { ParticipantCourseView } from './ParticipantCourseView';
 
 interface ParticipantGatewayProps {
@@ -22,10 +23,6 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
 
   // Load available published courses for quick navigation
   let allCourses = platformStorage.getCourses();
-  if (allCourses.length === 0) {
-    platformStorage.loadKiarPilot();
-    allCourses = platformStorage.getCourses();
-  }
   const publishedCourses = allCourses.filter(c => c.approvalStatus === 'APPROVED' || c.isFeaturedActive);
 
   // Resolve slug on mount or when currentSlug changes
@@ -53,14 +50,19 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
         }
       } else if (window.location.pathname.startsWith('/course/')) {
         activeSlug = window.location.pathname.replace('/course/', '');
+      } else if (window.location.pathname.length > 1 && !window.location.pathname.includes('.')) {
+        const potential = window.location.pathname.replace(/^\/+/, '').split('/')[0];
+        if (potential && !['admin', 'organizer', 'participant', 'architecture'].includes(potential)) {
+          activeSlug = potential;
+        }
       }
     }
 
-    if (!activeSlug) {
-      // Default to first published or pilot course if available
-      const pilot = allCourses.find(c => c.slug === 'kursus-transformasi-kiar-2026' || c.slug === 'transformasi-pedagogi-kiar-2026') || allCourses[0];
-      if (pilot) {
-        activeSlug = pilot.slug;
+    if (!activeSlug && allCourses.length > 0) {
+      // Default to first published course if available
+      const published = allCourses.find(c => c.approvalStatus === 'APPROVED' || c.isFeaturedActive) || allCourses[0];
+      if (published) {
+        activeSlug = published.slug;
       }
     }
 
@@ -133,6 +135,7 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
           scheduleDays={scheduleDays}
           sessions={sessions}
           announcements={announcements}
+          onUpdateCourse={(updated) => setCourse(updated)}
         />
       </div>
     );
@@ -151,7 +154,7 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
           </h2>
           <p className="text-xs text-zinc-600">
             {notFoundError 
-              ? `Tiada kursus berdaftar dengan slug "/course/${currentSlug}". Sila semak semula ejaan atau pilih kursus daripada senarai.`
+              ? `Tiada kursus berdaftar dengan slug "/${currentSlug}". Sila semak semula ejaan atau pilih kursus daripada senarai.`
               : 'Sila masukkan slug pautan rasmi kursus untuk membuka halaman maklumat.'
             }
           </p>
@@ -164,7 +167,7 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
             </label>
             <div className="flex">
               <span className="inline-flex items-center px-3 text-xs font-mono font-bold bg-zinc-200 border-2 border-r-0 border-zinc-900 text-zinc-700">
-                /course/
+                /
               </span>
               <input
                 type="text"
@@ -190,26 +193,32 @@ export const ParticipantGateway: React.FC<ParticipantGatewayProps> = ({
           <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block">
             Kursus Tersedia:
           </span>
-          <div className="space-y-1.5">
-            {allCourses.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => {
-                  setCurrentSlug(c.slug);
-                  setSlugInput(c.slug);
-                  setCourse(c);
-                  setNotFoundError(false);
-                }}
-                className="w-full text-left p-2.5 bg-zinc-50 hover:bg-blue-50 border border-zinc-300 hover:border-blue-600 transition-colors flex items-center justify-between text-xs"
-              >
-                <div className="truncate pr-2">
-                  <span className="font-bold text-zinc-900 block truncate">{c.title}</span>
-                  <span className="font-mono text-[10px] text-zinc-500">/course/{c.slug}</span>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-              </button>
-            ))}
-          </div>
+          {allCourses.length === 0 ? (
+            <div className="p-3 bg-zinc-50 border border-dashed border-zinc-300 text-center text-xs text-zinc-500">
+              Tiada kursus berdaftar pada masa ini.
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {allCourses.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setCurrentSlug(c.slug);
+                    setSlugInput(c.slug);
+                    setCourse(c);
+                    setNotFoundError(false);
+                  }}
+                  className="w-full text-left p-2.5 bg-zinc-50 hover:bg-blue-50 border border-zinc-300 hover:border-blue-600 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                >
+                  <div className="truncate pr-2">
+                    <span className="font-bold text-zinc-900 block truncate">{c.title}</span>
+                    <span className="font-mono text-[10px] text-zinc-500">{formatDateRangeDMY(c.startDate, c.endDate)} • /{c.slug}</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

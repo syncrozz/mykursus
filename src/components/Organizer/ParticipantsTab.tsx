@@ -281,7 +281,7 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
     }
     setSelectedParticipantIds(prev => prev.filter(id => !ids.includes(id)));
     setDeleteModalState(null);
-    showToast(`✓ Sebanyak ${ids.length} peserta telah dipadam mengikut DCOREV1.`);
+    showToast(`✓ Sebanyak ${ids.length} peserta telah dipadam.`);
   };
 
   return (
@@ -383,7 +383,7 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
               onClick={handleSelectAllToDelete}
               disabled={filteredEnrollments.length === 0}
               className="px-3 py-2 bg-red-50 hover:bg-red-100 border-2 border-red-600 text-red-900 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(220,38,38,1)] transition-all cursor-pointer disabled:opacity-50"
-              title="Pilih semua peserta dan padam secara pukal mengikut DCOREV1"
+              title="Pilih semua peserta dan padam secara pukal"
             >
               <Trash2 className="w-4 h-4 text-red-600" />
               <span>Pilih Semua untuk Padam</span>
@@ -477,7 +477,7 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
           <h4 className="text-sm font-bold text-zinc-900">Tiada Peserta Ditemui</h4>
           <p className="text-xs text-zinc-500 max-w-sm mx-auto mt-1 mb-4">
             {enrollments.length === 0 
-              ? 'Kursus ini belum mempunyai senarai peserta berdaftar. Tambah peserta pertama secara manual atau muat pilot.' 
+              ? 'Kursus ini belum mempunyai senarai peserta berdaftar. Tambah peserta pertama secara manual atau import fail CSV/Excel.' 
               : 'Tiada peserta sepadan dengan carian anda.'}
           </p>
           {enrollments.length === 0 && (
@@ -922,7 +922,7 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
                   {deleteModalState.title}
                 </h3>
                 <p className="text-[10px] font-mono font-bold text-red-700 uppercase tracking-wider">
-                  DCOREV1: Deleted Means Deleted
+                  Deleted Means Deleted
                 </p>
               </div>
             </div>

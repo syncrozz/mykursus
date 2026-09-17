@@ -267,9 +267,9 @@ const ARCHITECTURE_SECTIONS: SectionDoc[] = [
   {
     id: 'data-integrity',
     number: '20',
-    title: 'Data Integrity Strategy (DCOREV1)',
+    title: 'Data Integrity Strategy',
     category: 'Integrity & Security',
-    summary: 'Core DCOREV1 data rules strictly enforced across the system.',
+    summary: 'Core data rules strictly enforced across the system.',
     details: [
       'Admin Data Is Authoritative: No speculative auto-alteration of user input.',
       'Empty Means Empty: 0 participants or 0 announcements is a valid state; no automatic injection of mock records.',
@@ -488,7 +488,7 @@ export const ArchitectureViewer: React.FC = () => {
               : 'bg-white text-zinc-700 border-zinc-300 hover:border-zinc-900'
           }`}
         >
-          27 Spesifikasi Seni Bina (DCOREV1)
+          27 Spesifikasi Seni Bina
         </button>
         <button
           onClick={() => setActiveSubTab('diagrams')}
@@ -510,7 +510,7 @@ export const ArchitectureViewer: React.FC = () => {
                 Spesifikasi Seni Bina & Model Data (Part 02)
               </h2>
               <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mt-0.5">
-                Piawaian Tadbir Urus DCOREV1 untuk MyKursus
+                Piawaian Tadbir Urus untuk MyKursus
               </p>
             </div>
 

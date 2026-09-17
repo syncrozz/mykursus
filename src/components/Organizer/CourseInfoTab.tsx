@@ -13,6 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Course, ApprovalStatus } from '../../types';
+import { formatDateDMY, formatDateRangeDMY } from '../../utils/dateFormatter';
 
 interface CourseInfoTabProps {
   course: Course;
@@ -99,7 +100,7 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
 
   const handleOpenChangeModal = (field: 'DATES' | 'VENUE') => {
     setShowChangeModal(field);
-    setProposedValue(field === 'DATES' ? `${startDate} hingga ${endDate}` : venueName);
+    setProposedValue(field === 'DATES' ? formatDateRangeDMY(startDate, endDate) : venueName);
     setChangeReason('');
   };
 
@@ -271,7 +272,7 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-zinc-900 mb-1">
-                Tarikh Mula Kursus
+                Tarikh Mula Kursus {startDate && <span className="font-normal font-mono text-zinc-500">({formatDateDMY(startDate)})</span>}
               </label>
               <input
                 type="date"
@@ -284,7 +285,7 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-zinc-900 mb-1">
-                Tarikh Tamat Kursus
+                Tarikh Tamat Kursus {endDate && <span className="font-normal font-mono text-zinc-500">({formatDateDMY(endDate)})</span>}
               </label>
               <input
                 type="date"

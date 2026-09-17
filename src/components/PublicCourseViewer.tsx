@@ -10,6 +10,9 @@ interface PublicCourseViewerProps {
   scheduleDays?: ScheduleDay[];
   announcements?: Announcement[];
   onClose: () => void;
+  onUpdateAnnouncement?: (announcement: Announcement) => void;
+  onDeleteAnnouncement?: (id: string) => void;
+  onUpdateCourse?: (course: Course) => void;
 }
 
 export const PublicCourseViewer: React.FC<PublicCourseViewerProps> = ({
@@ -18,6 +21,9 @@ export const PublicCourseViewer: React.FC<PublicCourseViewerProps> = ({
   scheduleDays = [],
   announcements = [],
   onClose,
+  onUpdateAnnouncement,
+  onDeleteAnnouncement,
+  onUpdateCourse,
 }) => {
   const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
 
@@ -31,6 +37,9 @@ export const PublicCourseViewer: React.FC<PublicCourseViewerProps> = ({
           announcements={announcements}
           isOrganizerPreview={true}
           onClosePreview={onClose}
+          onUpdateAnnouncement={onUpdateAnnouncement}
+          onDeleteAnnouncement={onDeleteAnnouncement}
+          onUpdateCourse={onUpdateCourse}
         />
       </div>
 

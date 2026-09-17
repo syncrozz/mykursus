@@ -13,7 +13,6 @@ import {
   FileSpreadsheet, 
   RefreshCw, 
   HelpCircle,
-  Database,
   Users,
   ShieldCheck,
   ChevronRight,
@@ -26,7 +25,6 @@ import {
   UserAuthContext 
 } from '../../../types';
 import { platformStorage } from '../../../services/storage';
-import { KIAR_PILOT_SOURCE_DOCUMENTS } from '../../../services/kiarPilotData';
 import { AddSourceDocumentModal } from './AddSourceDocumentModal';
 import { ExtractionReviewModal } from './ExtractionReviewModal';
 import { DocumentPreviewModal } from './DocumentPreviewModal';
@@ -202,19 +200,6 @@ export const SourceDocumentsTab: React.FC<SourceDocumentsTabProps> = ({
     }
   };
 
-  const handleLoadKiarPilotDocs = () => {
-    try {
-      KIAR_PILOT_SOURCE_DOCUMENTS.forEach(d => {
-        const docWithCourse = { ...d, courseId: course.id };
-        platformStorage.saveSourceDocument(docWithCourse, currentUser);
-      });
-      loadDocuments();
-      showToast('3 Dokumen Sumber Penanda Aras Pilot KIAR berjaya dimuatkan.');
-    } catch (err: any) {
-      showToast(`Gagal memuatkan dokumen pilot: ${err.message}`, 'error');
-    }
-  };
-
   // Filter and search
   const filteredDocs = documents.filter(doc => {
     const matchesFilter = activeFilter === 'ALL' || doc.category === activeFilter;
@@ -303,18 +288,6 @@ export const SourceDocumentsTab: React.FC<SourceDocumentsTabProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-2.5 shrink-0">
-            {documents.length === 0 && (
-              <button
-                id="load-kiar-pilot-docs-btn"
-                type="button"
-                onClick={handleLoadKiarPilotDocs}
-                className="px-3.5 py-2 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors flex items-center space-x-1.5"
-              >
-                <Database className="w-3.5 h-3.5" />
-                <span>Muat Dokumen Sumber Pilot KIAR</span>
-              </button>
-            )}
-
             <button
               id="open-add-doc-modal-btn"
               type="button"
@@ -365,19 +338,13 @@ export const SourceDocumentsTab: React.FC<SourceDocumentsTabProps> = ({
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
             Kurangkan kemasukan data manual dengan memuat naik surat rasmi, jadual waktu kursus, atau spreadsheet senarai peserta. Ekstraksi pintar platform akan mencadangkan maklumat untuk disemak.
           </p>
-          <div className="mt-5 flex items-center justify-center space-x-3">
+          <div className="mt-5 flex items-center justify-center">
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-xs flex items-center space-x-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>Muat Naik Dokumen Sumber Pertama</span>
-            </button>
-            <button
-              onClick={handleLoadKiarPilotDocs}
-              className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-            >
-              Muat Dokumen Sampel Pilot KIAR
             </button>
           </div>
         </div>

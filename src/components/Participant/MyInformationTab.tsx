@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Course, CourseModuleKey, VerifiedParticipantData } from '../../types';
 import { platformStorage } from '../../services/storage';
+import { formatDateDMY } from '../../utils/dateFormatter';
 
 interface MyInformationTabProps {
   course: Course;
@@ -381,7 +382,7 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
                           <div className="font-bold text-zinc-900">{rec.label}</div>
                           {rec.date && (
                             <div className="text-[10px] text-zinc-500 font-mono">
-                              Tarikh: {rec.date}
+                              Tarikh: {formatDateDMY(rec.date)}
                             </div>
                           )}
                         </div>
@@ -411,7 +412,7 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
                 </div>
 
                 <div className="text-[10px] text-zinc-400 italic">
-                  🔒 Maklumat ini adalah terhad kepada rekod peribadi anda sahaja mengikut prinsip privasi ketat DCOREV1.
+                  🔒 Maklumat ini adalah terhad kepada rekod peribadi anda sahaja mengikut prinsip privasi ketat.
                 </div>
               </div>
             )}

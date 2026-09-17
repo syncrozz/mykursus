@@ -130,7 +130,7 @@ export const OrganizerManagement: React.FC<OrganizerManagementProps> = ({
             Tiada organizer tersedia.
           </p>
           <p className="text-xs text-zinc-500 max-w-sm">
-            Klik "Daftar Penganjur Baru" untuk mewujudkan entiti penganjur pertama atau muat data Pilot KIAR.
+            Klik &quot;Daftar Penganjur Baru&quot; untuk mewujudkan entiti penganjur pertama.
           </p>
         </div>
       ) : (

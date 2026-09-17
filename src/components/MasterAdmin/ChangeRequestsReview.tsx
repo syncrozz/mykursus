@@ -12,6 +12,7 @@ import {
   UserCheck 
 } from 'lucide-react';
 import { ApprovalChangeRequest, UserRole } from '../../types';
+import { formatDateDMY, replaceYMDWithDMY } from '../../utils/dateFormatter';
 
 interface ChangeRequestsReviewProps {
   changeRequests: ApprovalChangeRequest[];
@@ -66,7 +67,7 @@ export const ChangeRequestsReview: React.FC<ChangeRequestsReviewProps> = ({
             </h3>
           </div>
           <p className="text-xs text-zinc-500 font-medium mt-0.5">
-            Sistem semakan perbezaan (Side-by-Side Diff) untuk tarikh dan lokasi rasmi mengikut DCOREV1.
+            Sistem semakan perbezaan (Side-by-Side Diff) untuk tarikh dan lokasi rasmi.
           </p>
         </div>
 
@@ -93,7 +94,7 @@ export const ChangeRequestsReview: React.FC<ChangeRequestsReviewProps> = ({
         <ShieldAlert className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p>
-            <strong>PRINSIP KELULUSAN DCOREV1:</strong> Penganjur boleh menerbitkan hebahan, pautan slaid, dan kemas kini langsung secara serta-merta tanpa kelulusan. Walau bagaimanapun, <strong>Tarikh Rasmi</strong>, <strong>Lokasi Rasmi</strong>, dan <strong>Penerbitan Kursus</strong> memerlukan kelulusan Master Admin sebelum terpakai pada rekod awam.
+            <strong>PRINSIP KELULUSAN TADBIR URUS:</strong> Penganjur boleh menerbitkan hebahan, pautan slaid, dan kemas kini langsung secara serta-merta tanpa kelulusan. Walau bagaimanapun, <strong>Tarikh Rasmi</strong>, <strong>Lokasi Rasmi</strong>, dan <strong>Penerbitan Kursus</strong> memerlukan kelulusan Master Admin sebelum terpakai pada rekod awam.
           </p>
           <p className="text-blue-800 text-[11px]">
             Maklumat diterbitkan semasa kekal berkuat kuasa sehingga permohonan diluluskan oleh Master Admin.
@@ -129,7 +130,7 @@ export const ChangeRequestsReview: React.FC<ChangeRequestsReviewProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Dimohon oleh: <strong>{cr.requestedByOrganizerName}</strong> pada {new Date(cr.submittedAt).toLocaleDateString('ms-MY')}
+                    Dimohon oleh: <strong>{cr.requestedByOrganizerName}</strong> pada {formatDateDMY(cr.submittedAt)}
                   </p>
                 </div>
 
@@ -163,7 +164,9 @@ export const ChangeRequestsReview: React.FC<ChangeRequestsReviewProps> = ({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
                       Nilai Semasa (Diterbitkan & Aktif):
                     </span>
-                    <p className="font-bold text-zinc-900 text-sm">{cr.currentValue}</p>
+                    <p className="font-bold text-zinc-900 text-sm">
+                      {cr.targetField === 'DATES' ? replaceYMDWithDMY(cr.currentValue) : cr.currentValue}
+                    </p>
                   </div>
                   <span className="text-[10px] text-zinc-500 mt-2 block">
                     Kekal dipaparkan kepada peserta sehingga kelulusan
@@ -176,7 +179,9 @@ export const ChangeRequestsReview: React.FC<ChangeRequestsReviewProps> = ({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block mb-1">
                       Cadangan Pindaan Penganjur:
                     </span>
-                    <p className="font-bold text-blue-950 text-sm">{cr.proposedValue}</p>
+                    <p className="font-bold text-blue-950 text-sm">
+                      {cr.targetField === 'DATES' ? replaceYMDWithDMY(cr.proposedValue) : cr.proposedValue}
+                    </p>
                   </div>
                   <span className="text-[10px] text-blue-700 font-bold mt-2 block">
                     Akan menggantikan data rasmi jika diluluskan

@@ -1,6 +1,7 @@
 import React from 'react';
 import { History, ShieldCheck, FileText, User } from 'lucide-react';
 import { AuditLog } from '../../types';
+import { formatDateTimeDMY } from '../../utils/dateFormatter';
 
 interface AuditLogViewerProps {
   logs: AuditLog[];
@@ -18,7 +19,7 @@ export const AuditLogViewer: React.FC<AuditLogViewerProps> = ({ logs }) => {
           </h3>
         </div>
         <p className="text-xs text-zinc-500 font-medium mt-0.5">
-          Jejak rekod telus bagi semua kelulusan, perubahan status, dan tindakan kuasa Master Admin mengikut DCOREV1.
+          Jejak rekod telus bagi semua kelulusan, perubahan status, dan tindakan kuasa Master Admin.
         </p>
       </div>
 
@@ -42,14 +43,7 @@ export const AuditLogViewer: React.FC<AuditLogViewerProps> = ({ logs }) => {
               {logs.map((log) => (
                 <tr key={log.id} className="hover:bg-zinc-50">
                   <td className="p-3 text-zinc-500 border-r border-zinc-200 text-[11px] whitespace-nowrap">
-                    {new Date(log.timestamp).toLocaleString('ms-MY', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
+                    {formatDateTimeDMY(log.timestamp)}
                   </td>
                   <td className="p-3 border-r border-zinc-200">
                     <span className="font-bold text-zinc-900 px-1.5 py-0.5 bg-zinc-100 border border-zinc-300 text-[10px]">

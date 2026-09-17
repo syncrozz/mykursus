@@ -13,6 +13,7 @@ import {
   Building
 } from 'lucide-react';
 import { Course, CourseModuleKey, CourseModuleConfig, Organizer } from '../../types';
+import { formatDateDMY } from '../../utils/dateFormatter';
 
 interface CreateCourseModalProps {
   currentOrganizer: Organizer;
@@ -129,7 +130,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
           <div className="bg-blue-50 border border-blue-300 p-3 text-xs text-blue-900 flex items-start gap-2.5">
             <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
             <div>
-              <strong>Ketetapan Hak Milik DCOREV1:</strong> Kursus ini akan diikat secara automatik kepada akaun organisasi anda (<strong>{currentOrganizer.name}</strong>). Hak milik tidak boleh dipindah milik sewenang-wenangnya.
+              <strong>Ketetapan Hak Milik:</strong> Kursus ini akan diikat secara automatik kepada akaun organisasi anda (<strong>{currentOrganizer.name}</strong>). Hak milik tidak boleh dipindah milik sewenang-wenangnya.
             </div>
           </div>
 
@@ -211,7 +212,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-zinc-900 mb-1">
-                  Tarikh Mula
+                  Tarikh Mula {startDate && <span className="font-normal font-mono text-zinc-500">({formatDateDMY(startDate)})</span>}
                 </label>
                 <input
                   type="date"
@@ -223,7 +224,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-zinc-900 mb-1">
-                  Tarikh Tamat
+                  Tarikh Tamat {endDate && <span className="font-normal font-mono text-zinc-500">({formatDateDMY(endDate)})</span>}
                 </label>
                 <input
                   type="date"
@@ -270,7 +271,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
               3. Pautan URL Unik Peserta (Option A Public Slug)
             </h3>
             <div className="bg-zinc-100 p-3 border border-zinc-300 flex items-center gap-2 font-mono text-xs">
-              <span className="text-zinc-500 select-none">/course/</span>
+              <span className="text-zinc-500 select-none">/</span>
               <input
                 type="text"
                 value={customSlug}

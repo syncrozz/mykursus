@@ -16,6 +16,7 @@ import {
   Plus
 } from 'lucide-react';
 import { Course, Organizer, CourseStatus, ApprovalStatus } from '../../types';
+import { formatDateRangeDMY } from '../../utils/dateFormatter';
 
 interface CourseOversightProps {
   courses: Course[];
@@ -222,7 +223,7 @@ export const CourseOversight: React.FC<CourseOversightProps> = ({
             Tiada kursus tersedia.
           </p>
           <p className="text-xs text-zinc-500 max-w-md">
-            Pangkalan data platform masih kosong mengikut DCOREV1. Penganjur akan mendaftar kursus, atau anda boleh memuatkan data Pilot KIAR untuk ujian.
+            Pangkalan data platform masih kosong. Penganjur boleh mula mendaftar kursus baharu melalui Portal Penganjur.
           </p>
         </div>
       ) : filteredCourses.length === 0 ? (
@@ -277,7 +278,7 @@ export const CourseOversight: React.FC<CourseOversightProps> = ({
 
                     <td className="p-3 border-r border-zinc-200 text-zinc-700">
                       <p className="font-mono text-[11px] font-bold text-zinc-900">
-                        {c.startDate} → {c.endDate}
+                        {formatDateRangeDMY(c.startDate, c.endDate, '→')}
                       </p>
                       <p className="text-[11px] text-zinc-600 line-clamp-1">{c.venueName}</p>
                     </td>
@@ -292,7 +293,7 @@ export const CourseOversight: React.FC<CourseOversightProps> = ({
 
                     <td className="p-3 border-r border-zinc-200 font-mono text-[10px] text-blue-700">
                       <span className="hover:underline flex items-center gap-1">
-                        <span>/course/{c.slug}</span>
+                        <span>/{c.slug}</span>
                       </span>
                     </td>
 
@@ -321,7 +322,7 @@ export const CourseOversight: React.FC<CourseOversightProps> = ({
 
                         <button
                           onClick={() => {
-                            if (window.confirm(`Adakah anda pasti untuk memadam kursus "${c.title}" secara kekal mengikut DCOREV1?`)) {
+                            if (window.confirm(`Adakah anda pasti untuk memadam kursus "${c.title}" secara kekal?`)) {
                               onDeleteCourse(c.id);
                             }
                           }}

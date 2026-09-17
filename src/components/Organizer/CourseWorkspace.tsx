@@ -25,6 +25,7 @@ import {
   Check
 } from 'lucide-react';
 import { platformStorage } from '../../services/storage';
+import { formatDateRangeDMY } from '../../utils/dateFormatter';
 import { 
   Course, 
   ApprovalStatus, 
@@ -297,7 +298,7 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-600 mt-1">
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-zinc-500" />
-              <span>{course.startDate} hingga {course.endDate}</span>
+              <span>{formatDateRangeDMY(course.startDate, course.endDate)}</span>
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">

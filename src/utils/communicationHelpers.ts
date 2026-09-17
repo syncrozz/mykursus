@@ -1,4 +1,5 @@
 import { Course, Announcement, SessionItem, ResourceMaterial, AnnouncementPriority, AnnouncementCategory } from '../types';
+import { formatDateRangeDMY } from './dateFormatter';
 
 /**
  * Malaysian Course Communication Helpers (PART 08)
@@ -76,7 +77,7 @@ export function formatWhatsAppAnnouncement(
   linkedResource?: ResourceMaterial
 ): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const courseUrl = `${origin}/course/${course.slug}`;
+  const courseUrl = `${origin}/${course.slug}`;
   const priorityMeta = getPriorityMeta(announcement.priority);
   const categoryLabel = getCategoryLabel(announcement.category);
 
@@ -115,13 +116,13 @@ export function formatWhatsAppAnnouncement(
  */
 export function formatWhatsAppCourseShare(course: Course): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const courseUrl = `${origin}/course/${course.slug}`;
+  const courseUrl = `${origin}/${course.slug}`;
 
   let text = `🎓 *PORTAL MAKLUMAT KURSUS: MYKURSUS*\n`;
   text += `---------------------------------\n`;
   text += `*Kursus:* ${course.title}\n`;
   if (course.subtitle) text += `_${course.subtitle}_\n`;
-  text += `🗓️ *Tarikh:* ${course.startDate} hingga ${course.endDate}\n`;
+  text += `🗓️ *Tarikh:* ${formatDateRangeDMY(course.startDate, course.endDate)}\n`;
   text += `📍 *Lokasi:* ${course.venueName}\n`;
   if (course.venueDetails?.hallName) {
     text += `🏛️ *Dewan / Bilik:* ${course.venueDetails.hallName}\n`;

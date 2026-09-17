@@ -44,8 +44,8 @@ export default function App() {
   const [activeParticipantSlug, setActiveParticipantSlug] = useState<string>('');
   const [isFirebaseOnline, setIsFirebaseOnline] = useState<boolean>(false);
 
-  // Master Admin Sub-views: Dashboard | Courses | Organizers | Changes | Audit | Detail
-  const [adminView, setAdminView] = useState<'dashboard' | 'courses' | 'organizers' | 'changes' | 'audit' | 'detail'>('dashboard');
+  // Master Admin Sub-views: Dashboard | Courses | Organizers | Changes | Audit | Detail | Architecture
+  const [adminView, setAdminView] = useState<'dashboard' | 'courses' | 'organizers' | 'changes' | 'audit' | 'detail' | 'architecture'>('dashboard');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [initialCourseApprovalFilter, setInitialCourseApprovalFilter] = useState<ApprovalStatus | undefined>(undefined);
 
@@ -143,11 +143,32 @@ export default function App() {
       }
     });
 
-    // Check if initial URL points to a public course slug
     const path = window.location.pathname;
     const hash = window.location.hash;
     const searchParams = new URLSearchParams(window.location.search);
 
+    // Check if initial URL points to a specific mode (admin or organizer)
+    const modeParam = searchParams.get('mode');
+    if (modeParam === 'admin' || hash === '#admin' || hash === '#/admin') {
+      const isUnlocked = sessionStorage.getItem('mykursus_master_admin_unlocked') === 'true';
+      if (!isUnlocked) {
+        setShowAuthModal(true);
+      } else {
+        setAppMode('admin');
+      }
+      return;
+    }
+    if (modeParam === 'organizer' || hash === '#organizer' || hash === '#/organizer') {
+      const isUnlocked = sessionStorage.getItem('mykursus_organizer_unlocked') === 'true';
+      if (!isUnlocked) {
+        setShowOrganizerAuthModal(true);
+      } else {
+        setAppMode('organizer');
+      }
+      return;
+    }
+
+    // Check if initial URL points to a public course slug
     let initialSlug = 
       searchParams.get('course') || 
       searchParams.get('c') || 
@@ -163,8 +184,14 @@ export default function App() {
         initialSlug = hash.replace('#course/', '').trim();
       } else if (hash.startsWith('#/')) {
         const potentialSlug = hash.replace('#/', '').trim();
-        if (potentialSlug && !['admin', 'organizer', 'participant'].includes(potentialSlug)) {
+        if (potentialSlug && !['admin', 'organizer', 'participant', 'architecture'].includes(potentialSlug)) {
           initialSlug = potentialSlug;
+        }
+      } else if (path.length > 1 && !path.includes('.') && !path.startsWith('/api/')) {
+        // Direct root path like /kursus-transformasi-kiar-2026
+        const potentialPathSlug = path.replace(/^\/+/, '').split('/')[0].trim();
+        if (potentialPathSlug && !['admin', 'organizer', 'participant', 'architecture'].includes(potentialPathSlug)) {
+          initialSlug = potentialPathSlug;
         }
       }
     }
@@ -177,13 +204,8 @@ export default function App() {
   }, []);
 
   // --- Handlers for Governance Actions ---
-  const handleLoadPilotData = () => {
-    platformStorage.loadKiarPilot();
-    reloadData();
-  };
-
   const handleClearAllData = () => {
-    if (window.confirm('Adakah anda pasti mahu mengosongkan semua data platform mengikut DCOREV1 ("Empty Means Empty")?')) {
+    if (window.confirm('Adakah anda pasti mahu mengosongkan semua data platform ("Empty Means Empty")?')) {
       platformStorage.clearAllData();
       setSelectedCourse(null);
       reloadData();
@@ -284,33 +306,39 @@ export default function App() {
               <h1 className="text-xl font-black uppercase tracking-tight text-zinc-950">
                 MyKursus
               </h1>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-zinc-900 text-white uppercase">
-                DCOREV1
-              </span>
             </div>
             <p className="text-[11px] text-zinc-500 font-medium">
-              Platform Pengurusan Kursus & Akses Peserta Berpusat
+              Platform Pengurusan Kursus & Akses Peserta
             </p>
           </div>
         </div>
 
         {/* Top-Right Navigation & Mode Switchers */}
         <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+          {/* Active Mode Indicator if inside Organizer or Master Admin */}
+          {appMode === 'organizer' && (
+            <div className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-900 border-2 border-emerald-700 flex items-center gap-1.5 shadow-xs">
+              <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Mod: Penganjur</span>
+            </div>
+          )}
+          {appMode === 'admin' && (
+            <div className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-blue-100 text-blue-900 border-2 border-blue-700 flex items-center gap-1.5 shadow-xs">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
+              <span>Mod: Master Admin</span>
+            </div>
+          )}
+
           {/* Participant Experience Mode Switcher (PART 05) */}
           <button
             onClick={() => {
-              const currentCourses = platformStorage.getCourses();
-              if (currentCourses.length === 0) {
-                platformStorage.loadKiarPilot();
-                reloadData();
-              }
               const activeCourses = platformStorage.getCourses();
               if (activeCourses.length > 0 && !activeParticipantSlug) {
                 setActiveParticipantSlug(activeCourses[0].slug);
               }
               setAppMode('participant');
             }}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
               appMode === 'participant'
                 ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
                 : 'bg-white text-zinc-800 border-zinc-900 hover:bg-zinc-100'
@@ -320,114 +348,70 @@ export default function App() {
             <span>Paparan Peserta</span>
           </button>
 
-          {/* Organizer Workspace (Part 04) */}
-          <button
-            id="nav-btn-organizer"
-            onClick={() => {
-              if (!isOrganizerUnlocked) {
-                setShowOrganizerAuthModal(true);
-              } else {
-                setAppMode('organizer');
-              }
-            }}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-              appMode === 'organizer'
-                ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
-                : 'bg-white text-zinc-800 border-zinc-900 hover:bg-zinc-100'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-emerald-400" />
-            <span>Ruang Penganjur</span>
-            {!isOrganizerUnlocked && (
-              <Lock className="w-3 h-3 text-amber-500" title="Akses Dilindungi PIN 1234" />
-            )}
-          </button>
-
-          {/* Master Admin Mode Switcher */}
-          <button
-            id="nav-btn-master-admin"
-            onClick={() => {
-              if (!isMasterAdminUnlocked) {
-                setShowAuthModal(true);
-              } else {
-                setAppMode('admin');
-              }
-            }}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-              appMode === 'admin'
-                ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
-                : 'bg-white text-zinc-800 border-zinc-900 hover:bg-zinc-100'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 text-blue-400" />
-            <span>Master Admin</span>
-            {!isMasterAdminUnlocked && (
-              <Lock className="w-3 h-3 text-red-500" title="Akses Dilindungi PIN Keselamatan" />
-            )}
-            {pendingApprovalCount > 0 && (
-              <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setAppMode('architecture')}
-            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-2 transition-all flex items-center gap-1.5 ${
-              appMode === 'architecture'
-                ? 'bg-zinc-900 text-white border-zinc-900 shadow-xs'
-                : 'bg-white text-zinc-800 border-zinc-900 hover:bg-zinc-100'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-zinc-500" />
-            <span className="hidden sm:inline">Seni Bina</span>
-            <span>DCOREV1</span>
-          </button>
-
           {/* Firebase Status Badge */}
           <div 
-            className="hidden sm:flex items-center gap-1.5 px-2 py-1 text-[11px] font-mono border-2 border-zinc-900 bg-amber-50 text-zinc-800"
-            title="Pangkalan Data Firebase Firestore Aktif (Projek: ultimate-quote-w40ks)"
+            className="flex items-center gap-1.5 px-2 py-1.5 border-2 border-zinc-900 bg-amber-50 text-zinc-800"
+            title={`Pangkalan Data Firebase Firestore Aktif: ${isFirebaseOnline ? 'Sedia' : 'Menyambung'}`}
           >
-            <Cloud className={`w-3.5 h-3.5 ${isFirebaseOnline ? 'text-emerald-600' : 'text-amber-500'}`} />
-            <span className="font-bold text-[10px]">
-              {isFirebaseOnline ? 'Firebase: Sedia' : 'Firebase: Menyambung'}
-            </span>
+            <Cloud className={`w-4 h-4 ${isFirebaseOnline ? 'text-emerald-600' : 'text-amber-500'}`} />
             <span className={`w-2 h-2 rounded-full ${isFirebaseOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
           </div>
 
-          {/* Organizer Lock / Unlock indicator */}
+          {/* Organizer Access / Lock Indicator */}
           <button
             id="btn-nav-lock-organizer"
             onClick={() => {
               if (isOrganizerUnlocked) {
-                handleLockOrganizer();
-                alert('Ruang Penganjur telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
+                if (appMode !== 'organizer') {
+                  setAppMode('organizer');
+                } else {
+                  handleLockOrganizer();
+                  alert('Ruang Penganjur telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
+                }
               } else {
                 setShowOrganizerAuthModal(true);
               }
             }}
-            title={isOrganizerUnlocked ? 'Kunci Ruang Penganjur' : 'Buka Kunci Ruang Penganjur'}
-            className={`p-1.5 border-2 border-zinc-900 transition-colors cursor-pointer ${
-              isOrganizerUnlocked ? 'bg-emerald-50 hover:bg-red-50 text-emerald-700 hover:text-red-700' : 'bg-zinc-100 hover:bg-zinc-200 text-amber-600'
+            title={isOrganizerUnlocked ? (appMode === 'organizer' ? 'Kunci Ruang Penganjur' : 'Buka Ruang Penganjur') : 'Buka Ruang Penganjur (Perlu PIN)'}
+            className={`p-1.5 border-2 border-zinc-900 transition-colors cursor-pointer flex items-center justify-center ${
+              appMode === 'organizer'
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : isOrganizerUnlocked
+                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                : 'bg-zinc-100 hover:bg-zinc-200 text-amber-600'
             }`}
           >
-            {isOrganizerUnlocked ? <Unlock className="w-4 h-4 text-emerald-600" /> : <Lock className="w-4 h-4 text-amber-600" />}
+            {isOrganizerUnlocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
           </button>
 
-          {/* Master Admin Lock / Unlock status indicator */}
+          {/* Master Admin Access / Lock Indicator */}
           <button
             id="btn-nav-lock-admin"
             onClick={() => {
               if (isMasterAdminUnlocked) {
-                handleLockMasterAdmin();
-                alert('Master Admin telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
+                if (appMode !== 'admin') {
+                  setAppMode('admin');
+                } else {
+                  handleLockMasterAdmin();
+                  alert('Master Admin telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
+                }
               } else {
                 setShowAuthModal(true);
               }
             }}
-            title={isMasterAdminUnlocked ? 'Kunci Master Admin' : 'Buka Kunci Master Admin'}
-            className="p-1.5 bg-zinc-100 hover:bg-zinc-200 border-2 border-zinc-900 text-zinc-700 cursor-pointer"
+            title={isMasterAdminUnlocked ? (appMode === 'admin' ? 'Kunci Master Admin' : 'Buka Master Admin') : 'Buka Master Admin (PIN Keselamatan)'}
+            className={`p-1.5 border-2 border-zinc-900 transition-colors cursor-pointer flex items-center justify-center relative ${
+              appMode === 'admin'
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : isMasterAdminUnlocked
+                ? 'bg-blue-50 hover:bg-blue-100 text-blue-700'
+                : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
+            }`}
           >
-            {isMasterAdminUnlocked ? <Unlock className="w-4 h-4 text-blue-600" /> : <Lock className="w-4 h-4 text-red-600" />}
+            {isMasterAdminUnlocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4 text-red-600" />}
+            {pendingApprovalCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border border-white"></span>
+            )}
           </button>
         </div>
       </header>
@@ -512,7 +496,6 @@ export default function App() {
                   setAdminView(v);
                 }}
                 onLock={handleLockMasterAdmin}
-                onLoadPilot={handleLoadPilotData}
                 onClearAll={handleClearAllData}
                 pendingCount={pendingApprovalCount}
                 changesCount={pendingChangesCount}
@@ -531,7 +514,6 @@ export default function App() {
                   }}
                   onNavigateToOrganizers={() => setAdminView('organizers')}
                   onNavigateToChanges={() => setAdminView('changes')}
-                  onLoadPilot={handleLoadPilotData}
                 />
               )}
 
@@ -567,6 +549,18 @@ export default function App() {
 
               {adminView === 'audit' && (
                 <AuditLogViewer logs={auditLogs} />
+              )}
+
+              {adminView === 'architecture' && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border-2 border-blue-900 p-4 text-xs text-blue-950 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold uppercase tracking-wider block">Dokumentasi Seni Bina Platform</span>
+                      <span>Spesifikasi dalaman teknikal dan struktur aliran data MyKursus.my di bawah kawalan Master Admin.</span>
+                    </div>
+                  </div>
+                  <ArchitectureViewer />
+                </div>
               )}
 
               {adminView === 'detail' && selectedCourse && (
@@ -609,6 +603,10 @@ export default function App() {
           scheduleDays={platformStorage.getScheduleDaysByCourseId(previewCourse.id)}
           announcements={platformStorage.getAnnouncementsByCourseId(previewCourse.id)}
           onClose={() => setPreviewCourse(null)}
+          onUpdateCourse={(updated) => {
+            setPreviewCourse(updated);
+            setCourses(prev => prev.map(c => c.id === updated.id ? updated : c));
+          }}
         />
       )}
 
@@ -656,6 +654,32 @@ export default function App() {
                 loading="lazy"
               />
             </a>
+            <span className="text-zinc-700 hidden sm:inline">|</span>
+            <button
+              id="footer-nav-organizer"
+              type="button"
+              onClick={() => {
+                if (!isOrganizerUnlocked) setShowOrganizerAuthModal(true);
+                else setAppMode('organizer');
+              }}
+              className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer hidden sm:inline"
+              title="Akses Ruang Penganjur"
+            >
+              Penganjur
+            </button>
+            <span className="text-zinc-700 hidden sm:inline">•</span>
+            <button
+              id="footer-nav-admin"
+              type="button"
+              onClick={() => {
+                if (!isMasterAdminUnlocked) setShowAuthModal(true);
+                else setAppMode('admin');
+              }}
+              className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer hidden sm:inline"
+              title="Akses Master Admin"
+            >
+              Pentadbir
+            </button>
           </div>
 
           <button

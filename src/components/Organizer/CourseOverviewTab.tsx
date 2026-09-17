@@ -131,7 +131,7 @@ export const CourseOverviewTab: React.FC<CourseOverviewTabProps> = ({
               <span>Senarai Semak Ketersediaan Kursus</span>
             </h3>
             <span className="text-[10px] font-mono px-2 py-0.5 bg-zinc-100 font-bold">
-              DCOREV1 WORKSPACE
+              WORKSPACE
             </span>
           </div>
 
@@ -228,7 +228,7 @@ export const CourseOverviewTab: React.FC<CourseOverviewTabProps> = ({
             </p>
 
             <div className="bg-zinc-100 p-3 border-2 border-zinc-900 font-mono text-xs flex items-center justify-between gap-2">
-              <span className="text-blue-700 font-bold truncate">/course/{course.slug}</span>
+              <span className="text-blue-700 font-bold truncate">/{course.slug}</span>
               <button
                 onClick={onOpenPublicPreview}
                 className="px-2.5 py-1 bg-zinc-900 text-white text-[11px] font-bold hover:bg-zinc-800 flex items-center gap-1 shrink-0"

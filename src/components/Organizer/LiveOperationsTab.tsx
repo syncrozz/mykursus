@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Course, ScheduleDay, SessionItem, Announcement, CourseEnrollment } from '../../types';
 import { calculateCourseSessionStatus, SessionStatusInfo } from '../../utils/courseHelpers';
+import { formatDateDMY } from '../../utils/dateFormatter';
 import { QuickOperationalUpdateModal } from './QuickOperationalUpdateModal';
 
 interface LiveOperationsTabProps {
@@ -512,7 +513,7 @@ export const LiveOperationsTab: React.FC<LiveOperationsTabProps> = ({
               </h3>
             </div>
             <p className="text-xs text-zinc-600 mt-0.5">
-              Sebarang pindaan masa, bilik atau pautan slaid akan segera dikemaskini dalam pangkalan data kursus tunggal DCOREV1.
+              Sebarang pindaan masa, bilik atau pautan slaid akan segera dikemaskini dalam pangkalan data kursus tunggal.
             </p>
           </div>
 
@@ -528,7 +529,7 @@ export const LiveOperationsTab: React.FC<LiveOperationsTabProps> = ({
                     : 'bg-zinc-100 text-zinc-700 border-zinc-300 hover:border-zinc-900'
                 }`}
               >
-                Hari {day.dayNumber} ({day.date})
+                Hari {day.dayNumber} ({formatDateDMY(day.date)})
               </button>
             ))}
           </div>
