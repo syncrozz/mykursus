@@ -11,7 +11,8 @@ import {
   collection, 
   getDocs, 
   query, 
-  where 
+  where,
+  onSnapshot 
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -407,6 +408,18 @@ export async function pullParticipantsFromFirestore(): Promise<any[]> {
   }
 }
 
+export async function pullOrganizersFromFirestore(): Promise<any[]> {
+  try {
+    const snap = await getDocs(collection(db, 'organizers'));
+    const orgs: any[] = [];
+    snap.forEach(d => orgs.push({ id: d.id, ...d.data() }));
+    return orgs;
+  } catch (error) {
+    console.warn('Firestore pull organizers error:', error);
+    return [];
+  }
+}
+
 export async function pullCourseSubcollections(courseId: string): Promise<{
   scheduleDays: any[];
   sessions: any[];
@@ -493,6 +506,7 @@ export async function queryParticipantByPhoneInFirestore(
 
 export async function syncAllLocalDataToFirestore(data: {
   courses?: any[];
+  organizers?: any[];
   scheduleDays?: any[];
   sessions?: any[];
   announcements?: any[];
@@ -503,6 +517,12 @@ export async function syncAllLocalDataToFirestore(data: {
 }): Promise<{ success: boolean; count: number; error?: string }> {
   try {
     let count = 0;
+    for (const org of data.organizers || []) {
+      if (org.id) {
+        await syncOrganizerToFirestore(org);
+        count++;
+      }
+    }
     for (const p of data.participants || []) {
       if (p.id) {
         await syncParticipantToFirestore(p);
@@ -560,6 +580,7 @@ export async function syncAllLocalDataToFirestore(data: {
 
 export async function syncAllCloudDataToLocal(): Promise<{
   courses: any[];
+  organizers: any[];
   participants: any[];
   enrollments: any[];
   scheduleDays: any[];
@@ -569,9 +590,10 @@ export async function syncAllCloudDataToLocal(): Promise<{
   attendances: any[];
 }> {
   try {
-    const [cloudCourses, cloudParticipants] = await Promise.all([
+    const [cloudCourses, cloudParticipants, cloudOrganizers] = await Promise.all([
       pullCoursesFromFirestore(),
       pullParticipantsFromFirestore(),
+      pullOrganizersFromFirestore(),
     ]);
 
     const allDays: any[] = [];
@@ -593,6 +615,7 @@ export async function syncAllCloudDataToLocal(): Promise<{
 
     return {
       courses: cloudCourses,
+      organizers: cloudOrganizers,
       participants: cloudParticipants,
       enrollments: allEnrollments,
       scheduleDays: allDays,
@@ -605,6 +628,7 @@ export async function syncAllCloudDataToLocal(): Promise<{
     console.error('syncAllCloudDataToLocal failed:', error);
     return {
       courses: [],
+      organizers: [],
       participants: [],
       enrollments: [],
       scheduleDays: [],
@@ -613,6 +637,39 @@ export async function syncAllCloudDataToLocal(): Promise<{
       resources: [],
       attendances: [],
     };
+  }
+}
+
+/**
+ * Real-time subscription to Cloud Firestore collections
+ */
+export function setupFirestoreRealtimeSync(
+  onUpdate: (type: 'organizers' | 'courses', data: any[]) => void
+): () => void {
+  try {
+    const unsubOrganizers = onSnapshot(collection(db, 'organizers'), (snapshot) => {
+      const orgs: any[] = [];
+      snapshot.forEach(d => orgs.push({ id: d.id, ...d.data() }));
+      onUpdate('organizers', orgs);
+    }, (error) => {
+      console.warn('Firestore organizers onSnapshot notice:', error?.message || error);
+    });
+
+    const unsubCourses = onSnapshot(collection(db, 'courses'), (snapshot) => {
+      const courses: any[] = [];
+      snapshot.forEach(d => courses.push({ id: d.id, ...d.data() }));
+      onUpdate('courses', courses);
+    }, (error) => {
+      console.warn('Firestore courses onSnapshot notice:', error?.message || error);
+    });
+
+    return () => {
+      unsubOrganizers();
+      unsubCourses();
+    };
+  } catch (err) {
+    console.warn('setupFirestoreRealtimeSync initialization error:', err);
+    return () => {};
   }
 }
 

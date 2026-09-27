@@ -138,6 +138,22 @@
         "notes": { "type": "string", "maxLength": 500 }
       },
       "required": ["id", "courseId", "participantId", "attendanceLevel", "status", "markedAt"]
+    },
+    "Organizer": {
+      "title": "Organizer",
+      "description": "Entiti penganjur, agensi atau urus setia penganjuran kursus",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "name": { "type": "string", "maxLength": 200 },
+        "code": { "type": "string", "maxLength": 50 },
+        "contactEmail": { "type": "string", "maxLength": 100 },
+        "contactPhone": { "type": "string", "maxLength": 50 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "updatedAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "code", "contactEmail"]
     }
   },
   "firestore": {
@@ -168,6 +184,10 @@
     "/participants/{participantId}": {
       "schema": "Participant",
       "description": "Koleksi data induk peserta"
+    },
+    "/organizers/{organizerId}": {
+      "schema": "Organizer",
+      "description": "Koleksi dokumen penganjur platform"
     }
   }
 }

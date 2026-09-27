@@ -85,7 +85,7 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
             ) : (
               orgList.map((org) => (
                 <option key={org.id} value={org.id}>
-                  {org.name} ({org.id})
+                  {org.name} ({org.code || org.id})
                 </option>
               ))
             )}

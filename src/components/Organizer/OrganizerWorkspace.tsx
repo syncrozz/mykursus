@@ -133,6 +133,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     try {
       const newCourse = platformStorage.createCourse(courseData, authContext);
       setShowCreateModal(false);
+      if (newCourse.organizerId && newCourse.organizerId !== currentOrganizerId) {
+        setCurrentOrganizerId(newCourse.organizerId);
+      }
       handleRefresh();
       setSelectedCourseId(newCourse.id);
       showFeedback('✓ Kursus baharu berjaya dicipta!');
@@ -576,6 +579,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
       {showCreateModal && (
         <CreateCourseModal
           currentOrganizer={currentOrganizer}
+          allOrganizers={organizers}
           onSaveDraft={handleSaveDraftCourse}
           onClose={() => setShowCreateModal(false)}
         />

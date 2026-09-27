@@ -35,6 +35,7 @@ import { OrganizerAuthModal } from './components/Organizer/OrganizerAuthModal';
 import { OrganizerLockedGate } from './components/Organizer/OrganizerLockedGate';
 import { ParticipantGateway } from './components/Participant/ParticipantGateway';
 import { SupportModal } from './components/Support/SupportModal';
+import { FirebaseStatusModal } from './components/FirebaseStatusModal';
 import { Compass, Cloud } from 'lucide-react';
 import { testFirebaseConnection } from './services/firebase';
 
@@ -113,6 +114,7 @@ export default function App() {
 
   // Support Experience Modal State
   const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
+  const [showFirebaseModal, setShowFirebaseModal] = useState<boolean>(false);
 
   // Synchronized Storage State
   const [courses, setCourses] = useState<Course[]>([]);
@@ -135,6 +137,13 @@ export default function App() {
 
   useEffect(() => {
     reloadData();
+
+    // Listen to real-time storage changes across components, Firestore updates, and browser tabs
+    const handleDataChanged = () => {
+      reloadData();
+    };
+    window.addEventListener('mykursus_data_changed', handleDataChanged);
+    window.addEventListener('storage', handleDataChanged);
 
     // Verify Firebase connection on app boot
     testFirebaseConnection().then(res => {
@@ -201,6 +210,11 @@ export default function App() {
       setActiveParticipantSlug(cleanSlug);
       setAppMode('participant');
     }
+
+    return () => {
+      window.removeEventListener('mykursus_data_changed', handleDataChanged);
+      window.removeEventListener('storage', handleDataChanged);
+    };
   }, []);
 
   // --- Handlers for Governance Actions ---
@@ -349,13 +363,18 @@ export default function App() {
           </button>
 
           {/* Firebase Status Badge */}
-          <div 
-            className="flex items-center gap-1.5 px-2 py-1.5 border-2 border-zinc-900 bg-amber-50 text-zinc-800"
-            title={`Pangkalan Data Firebase Firestore Aktif: ${isFirebaseOnline ? 'Sedia' : 'Menyambung'}`}
+          <button 
+            type="button"
+            onClick={() => setShowFirebaseModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 border-2 border-zinc-900 bg-amber-50 hover:bg-amber-100 text-zinc-800 transition-colors cursor-pointer text-xs font-semibold shadow-xs"
+            title={`Pangkalan Data Firebase Firestore: ${isFirebaseOnline ? 'Terhubung (Klik untuk urus/segerak)' : 'Menyambung (Klik untuk info)'}`}
           >
             <Cloud className={`w-4 h-4 ${isFirebaseOnline ? 'text-emerald-600' : 'text-amber-500'}`} />
+            <span className="hidden md:inline text-[11px] font-mono font-bold">
+              {isFirebaseOnline ? 'Cloud: Aktif' : 'Cloud: Sambung'}
+            </span>
             <span className={`w-2 h-2 rounded-full ${isFirebaseOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
-          </div>
+          </button>
 
           {/* Organizer Access / Lock Indicator */}
           <button
@@ -366,7 +385,6 @@ export default function App() {
                   setAppMode('organizer');
                 } else {
                   handleLockOrganizer();
-                  alert('Ruang Penganjur telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
                 }
               } else {
                 setShowOrganizerAuthModal(true);
@@ -393,7 +411,6 @@ export default function App() {
                   setAppMode('admin');
                 } else {
                   handleLockMasterAdmin();
-                  alert('Master Admin telah dikunci. Sila masukkan PIN keselamatan untuk membuka semula.');
                 }
               } else {
                 setShowAuthModal(true);
@@ -698,6 +715,15 @@ export default function App() {
       <SupportModal
         isOpen={showSupportModal}
         onClose={() => setShowSupportModal(false)}
+      />
+
+      {/* Firebase Diagnostics & Cloud Sync Modal */}
+      <FirebaseStatusModal
+        isOpen={showFirebaseModal}
+        onClose={() => setShowFirebaseModal(false)}
+        isFirebaseOnline={isFirebaseOnline}
+        onConnectionChange={(online) => setIsFirebaseOnline(online)}
+        onDataReload={reloadData}
       />
     </div>
   );

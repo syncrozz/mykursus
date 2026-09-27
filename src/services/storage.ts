@@ -52,6 +52,7 @@ import {
   queryParticipantByPhoneInFirestore,
   syncAllLocalDataToFirestore,
   syncAllCloudDataToLocal,
+  setupFirestoreRealtimeSync,
 } from './firebase';
 
 export interface UserAuthContext {
@@ -77,6 +78,21 @@ const STORAGE_KEYS = {
   INITIALIZED: 'mykursus_initialized_v1',
 };
 
+const BROADCAST_CHANNEL_NAME = 'mykursus_sync_channel';
+let crossTabChannel: BroadcastChannel | null = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    crossTabChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+    crossTabChannel.onmessage = (event) => {
+      if (event?.data?.type === 'DATA_CHANGED') {
+        window.dispatchEvent(new CustomEvent('mykursus_data_changed', { detail: event.data }));
+      }
+    };
+  } catch (err) {
+    console.warn('BroadcastChannel not supported:', err);
+  }
+}
+
 // Safe localStorage access
 function getFromStorage<T>(key: string, fallback: T): T {
   try {
@@ -93,6 +109,9 @@ function saveToStorage<T>(key: string, data: T): void {
     localStorage.setItem(key, JSON.stringify(data));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('mykursus_data_changed', { detail: { key } }));
+      if (crossTabChannel) {
+        crossTabChannel.postMessage({ type: 'DATA_CHANGED', key, timestamp: Date.now() });
+      }
     }
   } catch (err) {
     console.error('Storage write error for key:', key, err);
@@ -127,6 +146,32 @@ class PlatformStorageRepository {
       setTimeout(() => {
         this.syncFromCloud().catch(err => console.warn('Background syncFromCloud error:', err));
       }, 150);
+
+      // Real-time Firestore subscription to automatically pull organizers and courses
+      setupFirestoreRealtimeSync((type, data) => {
+        if (type === 'organizers' && Array.isArray(data) && data.length > 0) {
+          const deletedIds = this.getDeletedOrganizerIds();
+          const current = getFromStorage<Organizer[]>(STORAGE_KEYS.ORGANIZERS, []);
+          let changed = false;
+          const merged = [...current];
+          for (const item of data) {
+            if (deletedIds.includes(item.id)) continue;
+            const idx = merged.findIndex(o => o.id === item.id);
+            if (idx >= 0) {
+              if (JSON.stringify(merged[idx]) !== JSON.stringify(item)) {
+                merged[idx] = { ...merged[idx], ...item };
+                changed = true;
+              }
+            } else {
+              merged.push(item);
+              changed = true;
+            }
+          }
+          if (changed) {
+            saveToStorage(STORAGE_KEYS.ORGANIZERS, merged);
+          }
+        }
+      });
     }
   }
 
@@ -1029,6 +1074,26 @@ class PlatformStorageRepository {
 
       let hasUpdates = false;
 
+      // 0. Merge Organizers (Filtering out explicitly deleted organizers)
+      if (cloudData.organizers && cloudData.organizers.length > 0) {
+        const localOrgs = getFromStorage<Organizer[]>(STORAGE_KEYS.ORGANIZERS, []);
+        const mergedOrgs = [...localOrgs];
+        for (const co of cloudData.organizers) {
+          if (deletedOrganizerIds.includes(co.id)) {
+            deleteOrganizerFromFirestore(co.id).catch(() => {});
+            continue;
+          }
+          const idx = mergedOrgs.findIndex(o => o.id === co.id);
+          if (idx >= 0) {
+            mergedOrgs[idx] = { ...mergedOrgs[idx], ...co };
+          } else {
+            mergedOrgs.push(co);
+          }
+        }
+        saveToStorage(STORAGE_KEYS.ORGANIZERS, mergedOrgs);
+        hasUpdates = true;
+      }
+
       // 1. Merge Courses (Filtering out explicitly deleted courses)
       if (cloudData.courses && cloudData.courses.length > 0) {
         const localCourses = getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []);
@@ -1212,6 +1277,7 @@ class PlatformStorageRepository {
   public async syncToCloud(): Promise<{ success: boolean; count: number; error?: string }> {
     const data = {
       courses: getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []),
+      organizers: getFromStorage<Organizer[]>(STORAGE_KEYS.ORGANIZERS, []),
       scheduleDays: getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []),
       sessions: getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []),
       announcements: getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []),
@@ -2768,6 +2834,60 @@ class PlatformStorageRepository {
     );
 
     return { importedCount };
+  }
+
+  public exportAllDataForBackup(): {
+    courses: Course[];
+    organizers: Organizer[];
+    participants: Participant[];
+    enrollments: CourseEnrollment[];
+    scheduleDays: ScheduleDay[];
+    sessions: SessionItem[];
+    announcements: Announcement[];
+    resources: ResourceMaterial[];
+    attendances: AttendanceRecord[];
+  } {
+    return {
+      courses: getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []),
+      organizers: getFromStorage<Organizer[]>(STORAGE_KEYS.ORGANIZERS, []),
+      participants: getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []),
+      enrollments: getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []),
+      scheduleDays: getFromStorage<ScheduleDay[]>(STORAGE_KEYS.SCHEDULE_DAYS, []),
+      sessions: getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []),
+      announcements: getFromStorage<Announcement[]>(STORAGE_KEYS.ANNOUNCEMENTS, []),
+      resources: getFromStorage<ResourceMaterial[]>(STORAGE_KEYS.RESOURCES, []),
+      attendances: getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []),
+    };
+  }
+
+  public importCloudBackup(payload: any): void {
+    if (payload.courses && Array.isArray(payload.courses)) {
+      saveToStorage(STORAGE_KEYS.COURSES, payload.courses);
+    }
+    if (payload.organizers && Array.isArray(payload.organizers)) {
+      saveToStorage(STORAGE_KEYS.ORGANIZERS, payload.organizers);
+    }
+    if (payload.participants && Array.isArray(payload.participants)) {
+      saveToStorage(STORAGE_KEYS.PARTICIPANTS, payload.participants);
+    }
+    if (payload.enrollments && Array.isArray(payload.enrollments)) {
+      saveToStorage(STORAGE_KEYS.ENROLLMENTS, payload.enrollments);
+    }
+    if (payload.scheduleDays && Array.isArray(payload.scheduleDays)) {
+      saveToStorage(STORAGE_KEYS.SCHEDULE_DAYS, payload.scheduleDays);
+    }
+    if (payload.sessions && Array.isArray(payload.sessions)) {
+      saveToStorage(STORAGE_KEYS.SESSIONS, payload.sessions);
+    }
+    if (payload.announcements && Array.isArray(payload.announcements)) {
+      saveToStorage(STORAGE_KEYS.ANNOUNCEMENTS, payload.announcements);
+    }
+    if (payload.resources && Array.isArray(payload.resources)) {
+      saveToStorage(STORAGE_KEYS.RESOURCES, payload.resources);
+    }
+    if (payload.attendances && Array.isArray(payload.attendances)) {
+      saveToStorage(STORAGE_KEYS.ATTENDANCE_RECORDS, payload.attendances);
+    }
   }
 
   public clearAllData(): void {

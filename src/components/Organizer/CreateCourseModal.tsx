@@ -17,15 +17,18 @@ import { formatDateDMY } from '../../utils/dateFormatter';
 
 interface CreateCourseModalProps {
   currentOrganizer: Organizer;
+  allOrganizers?: Organizer[];
   onSaveDraft: (courseData: Partial<Course>) => void;
   onClose: () => void;
 }
 
 export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
   currentOrganizer,
+  allOrganizers,
   onSaveDraft,
   onClose,
 }) => {
+  const [selectedOrganizerId, setSelectedOrganizerId] = useState(currentOrganizer.id);
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [code, setCode] = useState('');
@@ -89,10 +92,12 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
       venueName: venueName.trim() || 'Lokasi Akan Ditentukan',
       venueAddress: venueAddress.trim(),
       slug: previewSlug,
-      organizerId: currentOrganizer.id, // Strictly tied to current organizer
+      organizerId: selectedOrganizerId || currentOrganizer.id, // Assigned organizer
       modules,
     });
   };
+
+  const assignedOrg = (allOrganizers || []).find(o => o.id === selectedOrganizerId) || currentOrganizer;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/80 p-3 sm:p-6 backdrop-blur-xs flex justify-center items-start">
@@ -111,7 +116,7 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-400">
-                Penganjur Berdaftar: <strong className="text-white">{currentOrganizer.name}</strong>
+                Penganjur Berdaftar: <strong className="text-white">{assignedOrg.name} ({assignedOrg.code || assignedOrg.id})</strong>
               </p>
             </div>
           </div>
@@ -126,12 +131,32 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSave} className="p-5 sm:p-6 space-y-6 overflow-y-auto max-h-[80vh]">
-          {/* Ownership Notice */}
-          <div className="bg-blue-50 border border-blue-300 p-3 text-xs text-blue-900 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
-            <div>
-              <strong>Ketetapan Hak Milik:</strong> Kursus ini akan diikat secara automatik kepada akaun organisasi anda (<strong>{currentOrganizer.name}</strong>). Hak milik tidak boleh dipindah milik sewenang-wenangnya.
+          {/* Ownership Notice & Organizer Switcher */}
+          <div className="bg-blue-50 border-2 border-blue-300 p-3 text-xs text-blue-900 space-y-2">
+            <div className="flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+              <div>
+                <strong>Ketetapan Hak Milik Tenant:</strong> Kursus ini akan didaftarkan di bawah organisasi pilihan anda di bawah.
+              </div>
             </div>
+            {allOrganizers && allOrganizers.length > 1 && (
+              <div className="pt-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-blue-950 mb-1">
+                  Pilih Penganjur Pemilik Kursus:
+                </label>
+                <select
+                  value={selectedOrganizerId}
+                  onChange={(e) => setSelectedOrganizerId(e.target.value)}
+                  className="w-full text-xs font-bold py-1.5 px-2 bg-white border border-blue-400 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-blue-600 cursor-pointer"
+                >
+                  {allOrganizers.map(org => (
+                    <option key={org.id} value={org.id}>
+                      {org.name} ({org.code || org.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Section 1: Basic Information */}
