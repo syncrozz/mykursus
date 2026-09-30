@@ -1,14 +1,14 @@
 import React from 'react';
 import { 
   Building2, 
-  ShieldCheck, 
   PlusCircle, 
   BookOpen, 
   UserCheck, 
   Layers, 
   RefreshCw, 
   AlertCircle,
-  Lock
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { Organizer, UserRole } from '../../types';
 
@@ -26,6 +26,7 @@ interface OrganizerHeaderProps {
   onOpenCreateCourse?: () => void;
   totalCoursesCount?: number;
   onLockOrganizer?: () => void;
+  onChangePin?: () => void;
 }
 
 export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
@@ -41,7 +42,8 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
   onNavigate,
   onOpenCreateCourse,
   totalCoursesCount = 0,
-  onLockOrganizer
+  onLockOrganizer,
+  onChangePin
 }) => {
   const orgList = organizers || allOrganizers || [];
   const handleSelectOrg = (orgId: string) => {
@@ -58,19 +60,8 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
   };
   return (
     <header className="bg-white border-b-2 border-zinc-900 sticky top-0 z-30">
-      {/* Top Banner - Role Simulation and Security Context */}
-      <div className="bg-zinc-900 text-zinc-300 text-xs px-4 py-2 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 font-semibold text-white">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>RUANG KERJA PENGANJUR (ORGANIZER WORKSPACE)</span>
-          </div>
-          <span className="hidden md:inline-block text-zinc-600">|</span>
-          <span className="hidden md:inline-block text-zinc-400">
-            Operasi Kursus & Pendaftaran Peserta
-          </span>
-        </div>
-
+      {/* Top Banner - Role Simulation and Tenant Switcher */}
+      <div className="bg-zinc-900 text-zinc-300 text-xs px-4 py-2 flex flex-wrap items-center justify-end gap-3 border-b border-zinc-800">
         {/* Multi-Tenant Identity Switcher */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] text-zinc-400 font-mono">Penganjur Aktif:</span>
@@ -159,6 +150,19 @@ export const OrganizerHeader: React.FC<OrganizerHeaderProps> = ({
             <PlusCircle className="w-4 h-4" />
             <span>+ Cipta Kursus Baharu</span>
           </button>
+
+          {onChangePin && (
+            <button
+              id="btn-header-change-pin"
+              type="button"
+              onClick={onChangePin}
+              className="px-3 py-2 text-xs font-bold flex items-center gap-1.5 border-2 border-zinc-900 bg-white hover:bg-zinc-100 text-zinc-800 transition-all cursor-pointer shadow-[2px_2px_0px_0px_rgba(24,24,27,1)]"
+              title="Tukar PIN Keselamatan Penganjur"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-zinc-600" />
+              <span>Tukar PIN</span>
+            </button>
+          )}
 
           {onLockOrganizer && (
             <button

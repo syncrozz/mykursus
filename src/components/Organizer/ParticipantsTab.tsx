@@ -123,7 +123,11 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
 
   const handleSaveParticipant = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !phone.trim()) return;
+    if (!name.trim()) return;
+    if (!phone.trim() && !salaryNumber.trim()) {
+      alert('Sila masukkan sekurang-kurangnya No. Telefon Bimbit atau No. Gaji / ID untuk pengenalan peserta.');
+      return;
+    }
 
     onSaveParticipant(
       {
@@ -541,7 +545,13 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
                     )}
                   </td>
                   <td className="p-3 font-mono text-zinc-700">
-                    <div>{participant.phone}</div>
+                    <div>
+                      {participant.phone || (
+                        <span className="text-zinc-500 font-sans italic text-[11px]">
+                          {participant.salaryNumber ? '(Guna No. Gaji)' : 'Tiada No. Tel'}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-zinc-500 lowercase">{participant.email || '-'}</div>
                   </td>
                   <td className="p-3 text-zinc-800 font-medium">
@@ -653,17 +663,16 @@ export const ParticipantsTab: React.FC<ParticipantsTabProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-zinc-900 mb-1">
-                    No. Telefon Bimbit <span className="text-red-600">*</span>
+                    No. Telefon Bimbit {!salaryNumber.trim() && <span className="text-red-600">*</span>}
                   </label>
                   <input
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    required
                     placeholder="cth. 012-3456789"
                     className="w-full p-2 text-xs border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-mono"
                   />
-                  <p className="text-[10px] text-zinc-500 mt-0.5">Digunakan untuk pengesahan tanpa kata laluan (Option A).</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Boleh dikosongkan jika No. Gaji / ID diisi.</p>
                 </div>
 
                 <div>

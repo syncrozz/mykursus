@@ -83,6 +83,7 @@ export interface Organizer {
   code: string;              // e.g. "PPKI"
   contactEmail: string;
   contactPhone: string;
+  pin?: string;              // Security PIN for organizer access, defaults to '1234'
   description?: string;
   memberUserIds: string[];   // Users who belong to this Organizer
   createdAt: string;
@@ -233,6 +234,7 @@ export interface VerifiedParticipantData {
   institutionOrAgency: string;
   designation?: string;
   phone: string;                    // Masked for privacy (e.g. 019-***5671)
+  salaryNumber?: string;            // Official salary/staff ID
   enrollmentStatus: string;
   attendanceConfirmed: boolean;
   roomNumber?: string;

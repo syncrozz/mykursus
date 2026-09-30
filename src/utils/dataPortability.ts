@@ -360,13 +360,18 @@ export function validateAndParseParticipantsCSV(
     else if (rawStatusVal.includes('REG') || rawStatusVal.includes('DAFTAR')) status = 'REGISTERED';
     else if (rawStatusVal.includes('COMPLET') || rawStatusVal.includes('TAMAT')) status = 'COMPLETED';
 
-    // Validation
+    // Validation: Support either valid phone number OR valid salary number (staff ID)
     const validationErrors: string[] = [];
     if (!cleanName || cleanName.length < 2) {
       validationErrors.push('Nama peserta kosong atau tidak mencukupi.');
     }
-    if (!normalizedPhone || normalizedPhone.length < 8) {
-      validationErrors.push('Nombor telefon tidak sah atau hilang.');
+
+    const hasValidPhone = Boolean(normalizedPhone && normalizedPhone.length >= 8);
+    const cleanSalaryVal = rawSalary.trim();
+    const hasValidSalary = Boolean(cleanSalaryVal && cleanSalaryVal.length >= 2);
+
+    if (!hasValidPhone && !hasValidSalary) {
+      validationErrors.push('Perlu sekurang-kurangnya No. Telefon atau No. Gaji / ID untuk pengenalan peserta.');
     }
 
     // Duplicate detection in file
@@ -382,12 +387,13 @@ export function validateAndParseParticipantsCSV(
       }
     }
 
-    if (!isInternalDuplicate && rawSalary) {
-      if (seenSalaryInFile.has(rawSalary.trim())) {
+    if (!isInternalDuplicate && cleanSalaryVal) {
+      const salKey = cleanSalaryVal.toLowerCase();
+      if (seenSalaryInFile.has(salKey)) {
         isInternalDuplicate = true;
-        duplicateReason = `No. gaji sama dengan baris #${seenSalaryInFile.get(rawSalary.trim())} dalam fail ini.`;
+        duplicateReason = `No. gaji / ID sama dengan baris #${seenSalaryInFile.get(salKey)} dalam fail ini.`;
       } else {
-        seenSalaryInFile.set(rawSalary.trim(), i);
+        seenSalaryInFile.set(salKey, i);
       }
     }
 
@@ -400,7 +406,8 @@ export function validateAndParseParticipantsCSV(
     const existingMatch = existingEnrollments.find(e => {
       const existingNormPhone = normalizePhoneNumber(e.participant.phone);
       const isPhoneMatch = Boolean(normalizedPhone && existingNormPhone && existingNormPhone === normalizedPhone);
-      const isSalaryMatch = Boolean(rawSalary && e.participant.salaryNumber && e.participant.salaryNumber.trim() === rawSalary.trim());
+      const existingSal = (e.participant.salaryNumber || e.enrollment.salaryNumber || '').trim().toLowerCase();
+      const isSalaryMatch = Boolean(cleanSalaryVal && existingSal && cleanSalaryVal.toLowerCase() === existingSal);
       return isPhoneMatch || isSalaryMatch;
     });
 
@@ -415,7 +422,10 @@ export function validateAndParseParticipantsCSV(
 
       if (nameMismatch) {
         isConflict = true;
-        conflictReason = `Konflik: No. telefon sepadan dengan "${existingMatch.participant.name}", tetapi nama dalam fail ialah "${cleanName}".`;
+        const identifierLabel = normalizedPhone 
+          ? `No. telefon (${formatPhoneNumber(normalizedPhone)})` 
+          : `No. gaji (${cleanSalaryVal})`;
+        conflictReason = `Konflik: ${identifierLabel} sepadan dengan "${existingMatch.participant.name}", tetapi nama dalam fail ialah "${cleanName}".`;
       } else {
         duplicateReason = `Peserta telah sedia ada dalam kursus ini ("${existingMatch.participant.name}").`;
       }

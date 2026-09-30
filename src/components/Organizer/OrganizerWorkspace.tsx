@@ -23,6 +23,7 @@ import { OrganizerDashboard } from './OrganizerDashboard';
 import { CourseWorkspace } from './CourseWorkspace';
 import { CreateCourseModal } from './CreateCourseModal';
 import { AccessDeniedNotice } from './AccessDeniedNotice';
+import { ChangeOrganizerPinModal } from './ChangeOrganizerPinModal';
 
 interface OrganizerWorkspaceProps {
   onSwitchToMasterAdmin?: () => void;
@@ -38,7 +39,9 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
   // Organizers available on platform
   const [organizers, setOrganizers] = useState<Organizer[]>(() => platformStorage.getOrganizers());
   const [currentOrganizerId, setCurrentOrganizerId] = useState<string>(() => {
+    const saved = localStorage.getItem('mykursus_active_organizer_id');
     const orgs = platformStorage.getOrganizers();
+    if (saved && orgs.some(o => o.id === saved)) return saved;
     return orgs.length > 0 ? orgs[0].id : '';
   });
 
@@ -50,6 +53,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
 
   // Create Course Modal
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [showChangePinModal, setShowChangePinModal] = useState<boolean>(false);
 
   // Reload trigger
   const [dataVersion, setDataVersion] = useState<number>(0);
@@ -77,7 +81,10 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
     const orgs = platformStorage.getOrganizers();
     setOrganizers(orgs);
     if (orgs.length > 0) {
-      if (!currentOrganizerId || !orgs.some(o => o.id === currentOrganizerId)) {
+      const saved = localStorage.getItem('mykursus_active_organizer_id');
+      if (saved && orgs.some(o => o.id === saved)) {
+        setCurrentOrganizerId(saved);
+      } else if (!currentOrganizerId || !orgs.some(o => o.id === currentOrganizerId)) {
         setCurrentOrganizerId(orgs[0].id);
       }
     } else {
@@ -517,6 +524,7 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
         onOpenCreateCourse={() => setShowCreateModal(true)}
         totalCoursesCount={organizerCourses.length}
         onLockOrganizer={onLockOrganizer}
+        onChangePin={() => setShowChangePinModal(true)}
       />
 
       {/* Main Workspace View: Dashboard vs Individual Course */}
@@ -582,6 +590,19 @@ export const OrganizerWorkspace: React.FC<OrganizerWorkspaceProps> = ({
           allOrganizers={organizers}
           onSaveDraft={handleSaveDraftCourse}
           onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
+      {/* Change PIN Modal */}
+      {showChangePinModal && currentOrganizer && (
+        <ChangeOrganizerPinModal
+          organizer={currentOrganizer}
+          isOpen={showChangePinModal}
+          onClose={() => setShowChangePinModal(false)}
+          onSuccess={(newPin) => {
+            handleRefresh();
+            showFeedback(`✓ PIN Keselamatan bagi "${currentOrganizer.name}" berjaya dikemaskini!`);
+          }}
         />
       )}
     </div>

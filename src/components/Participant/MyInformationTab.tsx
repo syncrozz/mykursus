@@ -48,7 +48,7 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
 
     const trimmed = phoneNumberInput.trim();
     if (!trimmed) {
-      setErrorMessage('Sila masukkan nombor telefon yang anda daftarkan.');
+      setErrorMessage('Sila masukkan nombor telefon atau No. Gaji / ID yang didaftarkan.');
       return;
     }
 
@@ -62,11 +62,11 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
         setPhoneNumberInput('');
       } else {
         setErrorMessage(
-          'Nombor telefon tidak dijumpai dalam pangkalan data kursus ini. Sila semak semula nombor anda atau klik "Segerak Semula dari Cloud" di bawah jika penganjur baru sahaja mendaftarkan anda.'
+          'Nombor telefon atau No. Gaji / ID tidak dijumpai dalam pangkalan data kursus ini. Sila semak semula maklumat anda atau klik "Segerak Semula dari Cloud" di bawah jika penganjur baru sahaja mendaftarkan anda.'
         );
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Ralat semasa menyemak pengesahan nombor telefon.');
+      setErrorMessage(err.message || 'Ralat semasa menyemak pengesahan identiti peserta.');
     } finally {
       setIsVerifying(false);
     }
@@ -106,7 +106,7 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
           <p className="text-zinc-700 leading-relaxed">
             Maklumat umum kursus boleh dibaca oleh sesiapa sahaja tanpa log masuk. Maklumat peribadi seperti 
             <strong> Nombor Bilik Hotel</strong>, <strong>Rakan Sebilik</strong>, dan <strong>Kumpulan Bengkel</strong> 
-            hanya didedahkan kepada peserta yang mengesahkan nombor telefon berdaftar mereka.
+            hanya didedahkan kepada peserta yang mengesahkan nombor telefon atau No. Gaji / ID berdaftar mereka.
           </p>
         </div>
       </div>
@@ -154,24 +154,24 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
           <form onSubmit={handleVerify} className="space-y-4">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-1.5">
-                Nombor Telefon Berdaftar:
+                Nombor Telefon atau No. Gaji / ID Berdaftar:
               </label>
               <div className="relative">
                 <input
-                  type="tel"
+                  type="text"
                   value={phoneNumberInput}
                   onChange={(e) => {
                     setPhoneNumberInput(e.target.value);
                     if (errorMessage) setErrorMessage(null);
                   }}
-                  placeholder="cth. 019-2345671 atau +6012-3456789"
+                  placeholder="cth. 019-2345671 atau No. Gaji (cth. 275330)"
                   className="w-full px-3.5 py-3 text-sm font-mono font-bold bg-zinc-50 border-2 border-zinc-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-zinc-900"
                   autoFocus
                 />
               </div>
               <p className="text-[11px] text-zinc-500 mt-1.5 flex items-center gap-1">
                 <Phone className="w-3.5 h-3.5" />
-                <span>Format sokongan: 0123456789, +6012-345 6789, atau 019-2345671</span>
+                <span>Format sokongan: No. Telefon (cth. 012-3456789) atau No. Gaji / ID staf (cth. 275330)</span>
               </p>
             </div>
 
@@ -186,7 +186,7 @@ export const MyInformationTab: React.FC<MyInformationTabProps> = ({
           </form>
 
           <div className="p-3 bg-zinc-50 border border-zinc-200 text-[11px] text-zinc-500 leading-relaxed text-center">
-            🔒 Tiada kata laluan diperlukan. Sistem mengesahkan identiti anda secara terus berdasarkan nombor telefon yang didaftarkan oleh penganjur ({course.venueName}).
+            🔒 Tiada kata laluan diperlukan. Sistem mengesahkan identiti anda secara terus berdasarkan nombor telefon atau No. Gaji / ID yang didaftarkan oleh penganjur ({course.venueName}).
           </div>
         </div>
       ) : (

@@ -149,6 +149,7 @@
         "code": { "type": "string", "maxLength": 50 },
         "contactEmail": { "type": "string", "maxLength": 100 },
         "contactPhone": { "type": "string", "maxLength": 50 },
+        "pin": { "type": "string", "maxLength": 10 },
         "description": { "type": "string", "maxLength": 1000 },
         "createdAt": { "type": "string", "maxLength": 50 },
         "updatedAt": { "type": "string", "maxLength": 50 }

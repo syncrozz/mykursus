@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Lock, KeyRound, ShieldAlert, ArrowRight, Eye, EyeOff, Compass } from 'lucide-react';
+import { Lock, KeyRound, ShieldAlert, ArrowRight, Eye, EyeOff, Compass, Mail, Building2, CheckCircle2 } from 'lucide-react';
+import { platformStorage } from '../../services/storage';
+import { Organizer } from '../../types';
 
 interface OrganizerLockedGateProps {
-  onUnlockSuccess: () => void;
+  onUnlockSuccess: (authenticatedOrg?: Organizer) => void;
   onNavigateToParticipant: () => void;
 }
 
@@ -10,30 +12,53 @@ export const OrganizerLockedGate: React.FC<OrganizerLockedGateProps> = ({
   onUnlockSuccess,
   onNavigateToParticipant,
 }) => {
+  const [organizers, setOrganizers] = useState<Organizer[]>([]);
+  const [emailInput, setEmailInput] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showPin, setShowPin] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    const orgs = platformStorage.getOrganizers();
+    setOrganizers(orgs);
+    const rememberedEmail = localStorage.getItem('mykursus_last_organizer_email');
+    if (rememberedEmail) {
+      setEmailInput(rememberedEmail);
+    } else if (orgs.length > 0) {
+      setEmailInput(orgs[0].contactEmail || '');
+    }
+    emailInputRef.current?.focus();
   }, []);
+
+  const handleSelectQuickOrg = (org: Organizer) => {
+    setEmailInput(org.contactEmail || org.code);
+    setError(null);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin.trim() === '1234') {
+    setError(null);
+
+    const result = platformStorage.verifyOrganizerCredentials(emailInput, pin);
+
+    if (result.success && result.organizer) {
+      try {
+        localStorage.setItem('mykursus_last_organizer_email', result.organizer.contactEmail || '');
+        localStorage.setItem('mykursus_active_organizer_id', result.organizer.id);
+      } catch {
+        // ignore
+      }
       setError(null);
       setPin('');
-      onUnlockSuccess();
+      onUnlockSuccess(result.organizer);
     } else {
-      setError('PIN Keselamatan tidak sah. Sila masukkan PIN 1234.');
-      setPin('');
-      inputRef.current?.focus();
+      setError(result.message || 'E-mel atau PIN penganjur tidak sah. Sila semak semula.');
     }
   };
 
   return (
-    <div className="w-full flex items-center justify-center py-12 px-4">
+    <div className="w-full flex items-center justify-center py-8 sm:py-12 px-4">
       <div 
         id="card-organizer-locked-gate"
         className="w-full max-w-md bg-white border-2 border-zinc-900 p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(24,24,27,1)] space-y-5"
@@ -44,16 +69,46 @@ export const OrganizerLockedGate: React.FC<OrganizerLockedGateProps> = ({
           </div>
           <div className="inline-block">
             <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 uppercase tracking-wider">
-              Tapisan Keselamatan Diperlukan
+              Akses Penganjur Berdaftar
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black uppercase text-zinc-950 tracking-tight">
-            Ruang Penganjur Dikunci
+            Log Masuk Ruang Penganjur
           </h2>
           <p className="text-xs text-zinc-600 leading-relaxed max-w-sm mx-auto">
-            Akses ke ruang pengurusan kursus, peruntukan bilik/kumpulan, dan senarai peserta memerlukan pengesahan PIN keselamatan.
+            Sila masukkan E-mel Penganjur rasmi dan PIN keselamatan (Lalai: <strong>1234</strong>) untuk memulakan operasi kursus.
           </p>
         </div>
+
+        {/* Quick Org Pills */}
+        {organizers.length > 0 && (
+          <div className="p-2.5 bg-zinc-50 border border-zinc-200">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1.5">
+              Pilihan Pantas Organisasi:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {organizers.map(org => {
+                const isSelected = emailInput.toLowerCase() === (org.contactEmail || '').toLowerCase();
+                return (
+                  <button
+                    key={org.id}
+                    type="button"
+                    onClick={() => handleSelectQuickOrg(org)}
+                    className={`text-[11px] font-medium px-2 py-1 border transition-colors flex items-center gap-1 cursor-pointer ${
+                      isSelected 
+                        ? 'bg-zinc-900 text-white border-zinc-900 font-bold' 
+                        : 'bg-white text-zinc-700 border-zinc-300 hover:border-zinc-800'
+                    }`}
+                  >
+                    <Building2 className="w-3 h-3" />
+                    <span>{org.name}</span>
+                    {isSelected && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div 
@@ -67,12 +122,37 @@ export const OrganizerLockedGate: React.FC<OrganizerLockedGateProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <label 
+              htmlFor="input-gate-organizer-email"
+              className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1"
+            >
+              E-mel Penganjur / Kod Organisasi *
+            </label>
+            <div className="relative">
+              <input
+                id="input-gate-organizer-email"
+                ref={emailInputRef}
+                type="text"
+                required
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="cth. urusetia@kptm.edu.my"
+                className="w-full text-xs font-bold py-2.5 pl-8 pr-3 bg-zinc-50 border-2 border-zinc-900 focus:outline-none focus:bg-white text-zinc-900"
+              />
+              <Mail className="w-4 h-4 text-zinc-400 absolute left-2.5 top-3 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
               <label 
                 htmlFor="input-gate-organizer-pin"
                 className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600"
               >
-                Masukkan PIN Keselamatan (4-Digit)
+                PIN Keselamatan (4-Digit) *
               </label>
               <button
                 type="button"
@@ -94,12 +174,10 @@ export const OrganizerLockedGate: React.FC<OrganizerLockedGateProps> = ({
             </div>
             <input
               id="input-gate-organizer-pin"
-              ref={inputRef}
               type={showPin ? "text" : "password"}
               inputMode="numeric"
               pattern="[0-9]*"
-              maxLength={4}
-              autoFocus
+              maxLength={6}
               value={pin}
               onChange={(e) => {
                 const val = e.target.value.replace(/\D/g, '');
@@ -107,10 +185,10 @@ export const OrganizerLockedGate: React.FC<OrganizerLockedGateProps> = ({
                 if (error) setError(null);
               }}
               placeholder="••••"
-              className="w-full text-center tracking-[0.4em] text-3xl font-mono py-3 px-3 bg-zinc-50 border-2 border-zinc-900 focus:outline-none focus:bg-white shadow-inner font-black text-zinc-900"
+              className="w-full text-center tracking-[0.4em] text-3xl font-mono py-2.5 px-3 bg-zinc-50 border-2 border-zinc-900 focus:outline-none focus:bg-white shadow-inner font-black text-zinc-900"
             />
             <p className="text-[11px] text-zinc-500 mt-2 text-center font-mono">
-              PIN Keselamatan Penganjur: <strong>1234</strong>
+              PIN Keselamatan Lalai: <strong>1234</strong>
             </p>
           </div>
 
@@ -127,7 +205,7 @@ export const OrganizerLockedGate: React.FC<OrganizerLockedGateProps> = ({
             <button
               id="btn-gate-submit-pin"
               type="submit"
-              disabled={pin.length === 0}
+              disabled={!emailInput.trim() || pin.length === 0}
               className="w-full sm:w-1/2 py-2.5 text-xs font-black uppercase tracking-wider bg-emerald-600 text-white border-2 border-zinc-900 hover:bg-emerald-700 active:bg-emerald-800 flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               <KeyRound className="w-3.5 h-3.5" />

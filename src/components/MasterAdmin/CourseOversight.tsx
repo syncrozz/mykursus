@@ -245,10 +245,10 @@ export const CourseOversight: React.FC<CourseOversightProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 bg-white">
-              {filteredCourses.map((c) => {
+              {filteredCourses.map((c, idx) => {
                 const org = organizers.find(o => o.id === c.organizerId);
                 return (
-                  <tr key={c.id} className="hover:bg-zinc-50/80 transition-colors">
+                  <tr key={`${c.id}-${idx}`} className="hover:bg-zinc-50/80 transition-colors">
                     <td className="p-3 font-semibold text-zinc-900 border-r border-zinc-200">
                       <div className="flex items-center gap-1.5 mb-0.5">
                         {c.isFeaturedActive && (

@@ -468,8 +468,9 @@ export async function queryParticipantByPhoneInFirestore(
   rawInputPhone: string
 ): Promise<{ participant: any; enrollment: any } | null> {
   try {
+    const cleanInput = (rawInputPhone || '').trim().toLowerCase();
+    if (!cleanInput || cleanInput.length < 2) return null;
     const normInput = rawInputPhone.replace(/\D/g, '').replace(/^6/, '');
-    if (!normInput || normInput.length < 7) return null;
 
     const partsSnap = await getDocs(collection(db, 'participants'));
     let matchedParticipant: any = null;
@@ -477,7 +478,15 @@ export async function queryParticipantByPhoneInFirestore(
     partsSnap.forEach(d => {
       const data = d.data();
       const pPhone = String(data.phone || '').replace(/\D/g, '').replace(/^6/, '');
-      if (pPhone && (pPhone === normInput || (pPhone.length >= 8 && normInput.length >= 8 && (pPhone.endsWith(normInput) || normInput.endsWith(pPhone))))) {
+      const pSalary = String(data.salaryNumber || '').trim().toLowerCase();
+
+      const phoneMatch = Boolean(
+        pPhone && normInput && normInput.length >= 7 && 
+        (pPhone === normInput || (pPhone.length >= 8 && normInput.length >= 8 && (pPhone.endsWith(normInput) || normInput.endsWith(pPhone))))
+      );
+      const salaryMatch = Boolean(pSalary && pSalary === cleanInput);
+
+      if (phoneMatch || salaryMatch) {
         matchedParticipant = { id: d.id, ...data };
       }
     });

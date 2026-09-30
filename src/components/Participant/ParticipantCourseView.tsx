@@ -253,6 +253,40 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
   // Live session status
   const sessionStatus = calculateCourseSessionStatus(course, scheduleDays, sessions);
 
+  // Highlighted session state for direct jump from live spotlight
+  const [highlightedSessionId, setHighlightedSessionId] = useState<string | null>(null);
+
+  const handleGoToLiveSession = () => {
+    // 1. Identify live or targeted session
+    const targetSession = sessionStatus.currentSession 
+      || sessions.find(s => s.title.toLowerCase().includes('modul 2') || s.title.toLowerCase().includes('prompt kreatif'))
+      || sessionStatus.nextSession 
+      || sessions[0];
+
+    // 2. Switch active tab to schedule and clear any search query
+    setActiveTab('schedule');
+    setScheduleSearchQuery('');
+
+    if (targetSession) {
+      // 3. Set day filter to target session's day so it is visible
+      setSelectedDayNumber(targetSession.dayNumber);
+      setHighlightedSessionId(targetSession.id);
+
+      // 4. Smooth scroll directly to the session element
+      setTimeout(() => {
+        const el = document.getElementById(`session-${targetSession.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+
+      // 5. Clear highlight ring after 4.5 seconds
+      setTimeout(() => {
+        setHighlightedSessionId(null);
+      }, 4500);
+    }
+  };
+
   // Load verified participant session & read announcement status from storage on mount
   useEffect(() => {
     const saved = platformStorage.getParticipantSession(course.id);
@@ -637,11 +671,12 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
             )}
 
             <button
-              onClick={() => setActiveTab('schedule')}
-              className="self-start sm:self-auto text-blue-400 hover:text-white font-bold text-xs flex items-center gap-1 shrink-0"
+              onClick={handleGoToLiveSession}
+              className="self-start sm:self-auto text-amber-400 hover:text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 shadow-xs"
+              title="Pergi terus ke sesi yang sedang berlangsung sekarang"
             >
-              <span>Lihat Jadual Penuh</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <span>Lihat Sesi (Live) Sekarang</span>
+              <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
             </button>
           </div>
         </div>
@@ -1211,9 +1246,12 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
 
                             return (
                               <div 
+                                id={`session-${session.id}`}
                                 key={session.id} 
-                                className={`p-4 transition-colors ${
-                                  isCurrent 
+                                className={`p-4 transition-all duration-300 ${
+                                  highlightedSessionId === session.id
+                                    ? 'ring-4 ring-amber-500 bg-amber-50/90 shadow-lg scale-[1.01]'
+                                    : isCurrent 
                                     ? 'bg-emerald-50/60 border-l-4 border-l-emerald-600' 
                                     : isNext
                                     ? 'bg-blue-50/40 border-l-4 border-l-blue-600'
@@ -1225,6 +1263,11 @@ export const ParticipantCourseView: React.FC<ParticipantCourseViewProps> = ({
                                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                                   <div className="space-y-1.5 flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
+                                      {highlightedSessionId === session.id && (
+                                        <span className="px-2 py-0.5 bg-amber-500 text-zinc-950 text-[9px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1 shadow-xs">
+                                          <span>★ Sesi Sedang Dilihat (Live)</span>
+                                        </span>
+                                      )}
                                       {isCurrent && (
                                         <span className="px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-bold uppercase tracking-wider animate-pulse">
                                           Sedang Berlangsung

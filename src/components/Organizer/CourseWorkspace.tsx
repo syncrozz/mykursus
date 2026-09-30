@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   Send, 
@@ -138,6 +138,32 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
 
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [cloudSyncNotice, setCloudSyncNotice] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>(() => {
+    return platformStorage.getAutoSyncStatus?.()?.status || 'idle';
+  });
+  const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(() => {
+    const raw = platformStorage.getAutoSyncStatus?.()?.lastSyncedAt;
+    if (!raw) return null;
+    return new Date(raw).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' });
+  });
+
+  useEffect(() => {
+    const handleSyncStatus = (e: any) => {
+      if (e.detail) {
+        setSyncStatus(e.detail.status);
+        if (e.detail.lastSyncedAt) {
+          const date = new Date(e.detail.lastSyncedAt);
+          setLastSyncedTime(date.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        }
+        if (e.detail.status === 'synced') {
+          setCloudSyncNotice(`✓ Data disegerak secara automatik ke Cloud Firestore (${e.detail.count || 0} rekod).`);
+          setTimeout(() => setCloudSyncNotice(null), 4000);
+        }
+      }
+    };
+    window.addEventListener('mykursus_sync_status', handleSyncStatus);
+    return () => window.removeEventListener('mykursus_sync_status', handleSyncStatus);
+  }, []);
 
   const handleSyncToCloud = async () => {
     setIsSyncingCloud(true);
@@ -239,12 +265,29 @@ export const CourseWorkspace: React.FC<CourseWorkspaceProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleSyncToCloud}
-              disabled={isSyncingCloud}
-              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-400 text-blue-900 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-60"
-              title="Segerak kursus dan senarai peserta ke Cloud Firestore supaya boleh diakses di tab incognito dan peranti lain"
+              disabled={isSyncingCloud || syncStatus === 'syncing'}
+              className={`px-3 py-1.5 border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-60 ${
+                syncStatus === 'syncing' || isSyncingCloud
+                  ? 'bg-amber-50 hover:bg-amber-100 border-amber-400 text-amber-900'
+                  : syncStatus === 'synced'
+                  ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-400 text-emerald-900'
+                  : 'bg-blue-50 hover:bg-blue-100 border-blue-400 text-blue-900'
+              }`}
+              title="Penyegerakan automatik ke Cloud Firestore aktif setiap kali data dikemas kini. Klik untuk segerak manual segera."
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
-              <span>{isSyncingCloud ? 'Menyegerak ke Cloud...' : 'Segerak ke Cloud'}</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${syncStatus === 'syncing' || isSyncingCloud ? 'animate-spin text-amber-600' : syncStatus === 'synced' ? 'text-emerald-600' : 'text-blue-600'}`} />
+              <div className="flex items-center gap-1.5">
+                <span>
+                  {syncStatus === 'syncing' || isSyncingCloud 
+                    ? 'Auto-Sync: Menyegerak...' 
+                    : 'Auto-Sync: Aktif'}
+                </span>
+                {lastSyncedTime && (
+                  <span className="text-[10px] opacity-75 font-mono hidden sm:inline">
+                    ({lastSyncedTime})
+                  </span>
+                )}
+              </div>
             </button>
 
             <button

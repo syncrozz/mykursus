@@ -89,10 +89,14 @@ export default function App() {
     }
   };
 
-  const handleUnlockOrganizer = () => {
+  const handleUnlockOrganizer = (authenticatedOrg?: Organizer) => {
     setIsOrganizerUnlocked(true);
     try {
       sessionStorage.setItem('mykursus_organizer_unlocked', 'true');
+      if (authenticatedOrg?.id) {
+        localStorage.setItem('mykursus_active_organizer_id', authenticatedOrg.id);
+        window.dispatchEvent(new CustomEvent('mykursus_data_changed', { detail: { key: 'organizer_switch' } }));
+      }
     } catch {
       // ignore
     }
@@ -437,7 +441,7 @@ export default function App() {
       {appMode === 'participant' ? (
         /* Participant Experience (PART 05) */
         <ParticipantGateway
-          initialSlug={activeParticipantSlug || (courses.length > 0 ? courses[0].slug : undefined)}
+          initialSlug={activeParticipantSlug || undefined}
           onNavigateToOrganizer={() => {
             if (!isOrganizerUnlocked) {
               setShowOrganizerAuthModal(true);

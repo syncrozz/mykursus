@@ -390,7 +390,7 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {(filteredCourses || []).map((course) => {
+          {(filteredCourses || []).map((course, courseIdx) => {
             const pCount = getParticipantCount(course.id);
             const isChangesRequired = course.approvalStatus === ApprovalStatus.CHANGES_REQUIRED;
             const isSubmitted = course.approvalStatus === ApprovalStatus.SUBMITTED;
@@ -399,7 +399,7 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
 
             return (
               <div 
-                key={course.id}
+                key={`${course.id}-${courseIdx}`}
                 className={`bg-white border-2 flex flex-col justify-between transition-all shadow-[3px_3px_0px_0px_rgba(24,24,27,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_rgba(24,24,27,1)] ${
                   isChangesRequired 
                     ? 'border-red-600 ring-2 ring-red-300' 
@@ -606,8 +606,8 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({
 
             {/* List preview */}
             <div className="max-h-36 overflow-y-auto border border-zinc-200 bg-zinc-50 p-2 text-[11px] font-mono divide-y divide-zinc-200">
-              {courses.filter(c => deleteModal.courseIds.includes(c.id)).map(c => (
-                <div key={c.id} className="py-1 flex items-center justify-between gap-2">
+              {courses.filter(c => deleteModal.courseIds.includes(c.id)).map((c, idx) => (
+                <div key={`${c.id}-${idx}`} className="py-1 flex items-center justify-between gap-2">
                   <span className="font-bold text-zinc-800 truncate">{c.title}</span>
                   {c.code && <span className="text-zinc-500 text-[10px] shrink-0">{c.code}</span>}
                 </div>

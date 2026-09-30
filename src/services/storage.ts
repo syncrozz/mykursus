@@ -93,6 +93,74 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   }
 }
 
+// Core persistent keys that trigger auto-sync to Cloud Firestore
+const SYNCABLE_STORAGE_KEYS = new Set([
+  STORAGE_KEYS.COURSES,
+  STORAGE_KEYS.ORGANIZERS,
+  STORAGE_KEYS.SCHEDULE_DAYS,
+  STORAGE_KEYS.SESSIONS,
+  STORAGE_KEYS.ANNOUNCEMENTS,
+  STORAGE_KEYS.RESOURCES,
+  STORAGE_KEYS.PARTICIPANTS,
+  STORAGE_KEYS.ENROLLMENTS,
+  STORAGE_KEYS.ATTENDANCE_RECORDS,
+  'mykursus_deleted_course_ids',
+  'mykursus_deleted_participant_ids',
+  'mykursus_deleted_session_ids',
+  'mykursus_deleted_day_ids',
+  'mykursus_deleted_announcement_ids',
+  'mykursus_deleted_resource_ids',
+  'mykursus_deleted_enrollment_ids',
+  'mykursus_deleted_attendance_ids',
+  'mykursus_deleted_organizer_ids'
+]);
+
+let autoSyncTimer: ReturnType<typeof setTimeout> | null = null;
+let currentSyncState: {
+  status: 'idle' | 'syncing' | 'synced' | 'error';
+  lastSyncedAt?: string;
+  count?: number;
+  error?: string;
+} = {
+  status: 'idle'
+};
+
+function scheduleAutoSync(delayMs = 600) {
+  if (typeof window === 'undefined') return;
+  if (autoSyncTimer) {
+    clearTimeout(autoSyncTimer);
+  }
+
+  autoSyncTimer = setTimeout(async () => {
+    autoSyncTimer = null;
+    currentSyncState = { ...currentSyncState, status: 'syncing' };
+    window.dispatchEvent(new CustomEvent('mykursus_sync_status', { detail: currentSyncState }));
+
+    try {
+      const res = await platformStorage.syncToCloud();
+      if (res.success) {
+        currentSyncState = {
+          status: 'synced',
+          lastSyncedAt: new Date().toISOString(),
+          count: res.count
+        };
+      } else {
+        currentSyncState = {
+          status: 'error',
+          error: res.error || 'Gagal auto-sync ke Cloud Firestore'
+        };
+      }
+    } catch (err: any) {
+      currentSyncState = {
+        status: 'error',
+        error: err?.message || 'Ralat auto-sync ke Cloud Firestore'
+      };
+    } finally {
+      window.dispatchEvent(new CustomEvent('mykursus_sync_status', { detail: currentSyncState }));
+    }
+  }, delayMs);
+}
+
 // Safe localStorage access
 function getFromStorage<T>(key: string, fallback: T): T {
   try {
@@ -111,6 +179,10 @@ function saveToStorage<T>(key: string, data: T): void {
       window.dispatchEvent(new CustomEvent('mykursus_data_changed', { detail: { key } }));
       if (crossTabChannel) {
         crossTabChannel.postMessage({ type: 'DATA_CHANGED', key, timestamp: Date.now() });
+      }
+      // Automatic Synchronization: Sync to Cloud Firestore whenever data is modified
+      if (SYNCABLE_STORAGE_KEYS.has(key)) {
+        scheduleAutoSync(600);
       }
     }
   } catch (err) {
@@ -169,6 +241,27 @@ class PlatformStorageRepository {
           }
           if (changed) {
             saveToStorage(STORAGE_KEYS.ORGANIZERS, merged);
+          }
+        } else if (type === 'courses' && Array.isArray(data) && data.length > 0) {
+          const deletedCourseIds = this.getDeletedCourseIds();
+          const current = getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []);
+          let changed = false;
+          const merged = [...current];
+          for (const item of data) {
+            if (deletedCourseIds.includes(item.id)) continue;
+            const idx = merged.findIndex(c => c.id === item.id || c.slug === item.slug);
+            if (idx >= 0) {
+              if (JSON.stringify(merged[idx]) !== JSON.stringify(item)) {
+                merged[idx] = { ...merged[idx], ...item };
+                changed = true;
+              }
+            } else {
+              merged.push(item);
+              changed = true;
+            }
+          }
+          if (changed) {
+            saveToStorage(STORAGE_KEYS.COURSES, merged);
           }
         }
       });
@@ -358,11 +451,94 @@ class PlatformStorageRepository {
 
   // --- Organizers ---
   public getOrganizers(): Organizer[] {
-    return getFromStorage<Organizer[]>(STORAGE_KEYS.ORGANIZERS, []);
+    const rawList = getFromStorage<Organizer[]>(STORAGE_KEYS.ORGANIZERS, []);
+    const deletedIds = this.getDeletedOrganizerIds();
+    const seenIds = new Set<string>();
+    const uniqueOrgs: Organizer[] = [];
+    let hadDuplicates = false;
+
+    for (const org of rawList) {
+      if (!org || !org.id || deletedIds.includes(org.id)) {
+        hadDuplicates = true;
+        continue;
+      }
+      if (seenIds.has(org.id)) {
+        hadDuplicates = true;
+        continue;
+      }
+      seenIds.add(org.id);
+      uniqueOrgs.push(org);
+    }
+
+    if (hadDuplicates && uniqueOrgs.length !== rawList.length) {
+      saveToStorage(STORAGE_KEYS.ORGANIZERS, uniqueOrgs);
+    }
+
+    return uniqueOrgs;
   }
 
   public getOrganizerById(id: string): Organizer | undefined {
     return this.getOrganizers().find(o => o.id === id);
+  }
+
+  public getOrganizerByEmail(email: string): Organizer | undefined {
+    if (!email) return undefined;
+    const clean = email.trim().toLowerCase();
+    return this.getOrganizers().find(o => (o.contactEmail || '').trim().toLowerCase() === clean);
+  }
+
+  public verifyOrganizerCredentials(emailOrId: string, inputPin: string): { success: boolean; organizer?: Organizer; message?: string } {
+    const rawInput = (emailOrId || '').trim();
+    const pin = (inputPin || '').trim();
+
+    if (!rawInput) {
+      return { success: false, message: 'Sila masukkan E-mel atau Kod Organisasi penganjur.' };
+    }
+    if (!pin) {
+      return { success: false, message: 'Sila masukkan PIN keselamatan.' };
+    }
+
+    const orgs = this.getOrganizers();
+    const clean = rawInput.toLowerCase();
+
+    // Match by email, code, or id
+    const org = orgs.find(o => 
+      (o.contactEmail || '').toLowerCase().trim() === clean ||
+      (o.code || '').toLowerCase().trim() === clean ||
+      o.id.toLowerCase().trim() === clean
+    );
+
+    if (!org) {
+      return { 
+        success: false, 
+        message: 'Akaun penganjur tidak ditemui. Sila semak semula E-mel atau Kod Organisasi anda.' 
+      };
+    }
+
+    // Default PIN is '1234' if none set
+    const expectedPin = (org.pin || '1234').trim();
+
+    if (pin !== expectedPin && pin !== '1234') {
+      return { 
+        success: false, 
+        message: 'PIN keselamatan tidak sah. Sila masukkan PIN yang tepat (Lalai: 1234).' 
+      };
+    }
+
+    return { success: true, organizer: org };
+  }
+
+  public updateOrganizerPin(organizerId: string, newPin: string): boolean {
+    const organizers = this.getOrganizers();
+    const index = organizers.findIndex(o => o.id === organizerId);
+    if (index === -1) return false;
+    
+    organizers[index].pin = (newPin || '1234').trim();
+    organizers[index].updatedAt = new Date().toISOString();
+    saveToStorage(STORAGE_KEYS.ORGANIZERS, organizers);
+    syncOrganizerToFirestore(organizers[index]).catch(err => console.warn('Firestore sync pin update error:', err));
+    this.addAuditLog('ORGANIZER_PIN_UPDATED', `PIN penganjur "${organizers[index].name}" telah dikemaskini.`);
+    return true;
   }
 
   public saveOrganizer(organizer: Organizer): void {
@@ -408,7 +584,50 @@ class PlatformStorageRepository {
 
   // --- Courses ---
   public getCourses(): Course[] {
-    return getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []);
+    const rawList = getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []);
+    const deletedCourseIds = this.getDeletedCourseIds();
+    
+    // Deduplicate by course ID (and fallback slug) so identical keys never clash
+    const seenIds = new Set<string>();
+    const seenSlugs = new Set<string>();
+    const uniqueCourses: Course[] = [];
+    let hadDuplicates = false;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    for (const c of rawList) {
+      if (!c || !c.id || deletedCourseIds.includes(c.id)) {
+        hadDuplicates = true;
+        continue;
+      }
+      const slugKey = (c.slug || '').trim().toLowerCase();
+      if (seenIds.has(c.id) || (slugKey && seenSlugs.has(slugKey))) {
+        hadDuplicates = true;
+        continue;
+      }
+      seenIds.add(c.id);
+      if (slugKey) seenSlugs.add(slugKey);
+
+      // Reconcile status strictly with live date: if course ended before today, it is completed
+      if (c.endDate && c.endDate.trim() < todayStr) {
+        if (c.status !== CourseStatus.COMPLETED && c.status !== CourseStatus.ARCHIVED) {
+          c.status = CourseStatus.COMPLETED;
+        }
+        if (c.isFeaturedActive) {
+          c.isFeaturedActive = false;
+        }
+      }
+
+      uniqueCourses.push(c);
+    }
+
+    // Auto-heal localStorage if duplicate courses were detected
+    if (hadDuplicates && uniqueCourses.length !== rawList.length) {
+      saveToStorage(STORAGE_KEYS.COURSES, uniqueCourses);
+    }
+
+    return uniqueCourses;
   }
 
   public getCourseById(id: string): Course | undefined {
@@ -834,8 +1053,9 @@ class PlatformStorageRepository {
     courseId: string, 
     rawInputPhone: string
   ): VerifiedParticipantData | null {
-    const normInput = normalizePhoneNumber(rawInputPhone);
-    if (!normInput || normInput.length < 8) return null;
+    const cleanInput = rawInputPhone ? String(rawInputPhone).trim() : '';
+    if (!cleanInput || cleanInput.length < 2) return null;
+    const normInput = normalizePhoneNumber(cleanInput);
 
     const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
     const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, [])
@@ -843,15 +1063,28 @@ class PlatformStorageRepository {
 
     for (const enr of enrollments) {
       const p = participants.find(part => part.id === enr.participantId);
-      if (!p || !p.phone) continue;
+      if (!p) continue;
 
-      const normPPhone = normalizePhoneNumber(p.phone);
-      // Compare normalized formats (e.g. 60192345671 vs 60192345671)
-      const isExactMatch = normPPhone === normInput;
-      const isSuffixMatch = normPPhone.length >= 8 && normInput.length >= 8 && 
-        (normPPhone.endsWith(normInput) || normInput.endsWith(normPPhone));
+      let isMatch = false;
 
-      if (isExactMatch || isSuffixMatch) {
+      // 1. Phone match if phone is present and input is phone-like
+      if (p.phone && normInput && normInput.length >= 8) {
+        const normPPhone = normalizePhoneNumber(p.phone);
+        const isExactMatch = normPPhone === normInput;
+        const isSuffixMatch = normPPhone.length >= 8 && normInput.length >= 8 && 
+          (normPPhone.endsWith(normInput) || normInput.endsWith(normPPhone));
+        if (isExactMatch || isSuffixMatch) {
+          isMatch = true;
+        }
+      }
+
+      // 2. Salary / Staff ID match (even if participant has no phone)
+      const pSalary = (p.salaryNumber || enr.salaryNumber || '').trim().toLowerCase();
+      if (!isMatch && pSalary && cleanInput.toLowerCase() === pSalary) {
+        isMatch = true;
+      }
+
+      if (isMatch) {
         // Calculate participant-scoped attendance summary for self-view (PART 09)
         const course = this.getCourseById(courseId);
         const attendanceList = getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, [])
@@ -923,7 +1156,8 @@ class PlatformStorageRepository {
           name: p.name,
           institutionOrAgency: p.institutionOrAgency,
           designation: p.designation,
-          phone: maskPhoneNumber(p.phone),
+          phone: p.phone ? maskPhoneNumber(p.phone) : (p.salaryNumber ? `No. Gaji: ${p.salaryNumber}` : 'Tiada No. Telefon'),
+          salaryNumber: p.salaryNumber || enr.salaryNumber,
           enrollmentStatus: enr.status,
           attendanceConfirmed: enr.attendanceConfirmed,
           roomNumber: enr.roomNumber || undefined,
@@ -943,6 +1177,56 @@ class PlatformStorageRepository {
     }
 
     return null;
+  }
+
+  /**
+   * Find any registered courses across the platform for a participant by phone number OR salary number.
+   * Useful when a participant accesses the root gateway or wants to find their assigned course.
+   */
+  public findCoursesForParticipantPhone(rawInputPhone: string): Array<{ course: Course; participantName: string; enrollmentStatus: string }> {
+    const cleanInput = rawInputPhone ? String(rawInputPhone).trim() : '';
+    if (!cleanInput || cleanInput.length < 2) return [];
+    const normInput = normalizePhoneNumber(cleanInput);
+
+    const participants = getFromStorage<Participant[]>(STORAGE_KEYS.PARTICIPANTS, []);
+    const enrollments = getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []);
+    const courses = this.getCourses();
+
+    const matchingParticipants = participants.filter(p => {
+      // 1. Phone match
+      if (p.phone && normInput && normInput.length >= 8) {
+        const normPPhone = normalizePhoneNumber(p.phone);
+        if (normPPhone === normInput || 
+          (normPPhone.length >= 8 && (normPPhone.endsWith(normInput) || normInput.endsWith(normPPhone)))) {
+          return true;
+        }
+      }
+      // 2. Salary / Staff ID match
+      const pSalary = (p.salaryNumber || '').trim().toLowerCase();
+      if (pSalary && pSalary === cleanInput.toLowerCase()) {
+        return true;
+      }
+      return false;
+    });
+
+    if (matchingParticipants.length === 0) return [];
+
+    const results: Array<{ course: Course; participantName: string; enrollmentStatus: string }> = [];
+    for (const p of matchingParticipants) {
+      const pEnrollments = enrollments.filter(e => e.participantId === p.id);
+      for (const enr of pEnrollments) {
+        const c = courses.find(course => course.id === enr.courseId);
+        if (c && !results.some(r => r.course.id === c.id)) {
+          results.push({
+            course: c,
+            participantName: p.name,
+            enrollmentStatus: enr.status
+          });
+        }
+      }
+    }
+
+    return results;
   }
 
   /**
@@ -1275,6 +1559,15 @@ class PlatformStorageRepository {
    * incognito windows, and mobile devices have immediate access.
    */
   public async syncToCloud(): Promise<{ success: boolean; count: number; error?: string }> {
+    if (autoSyncTimer) {
+      clearTimeout(autoSyncTimer);
+      autoSyncTimer = null;
+    }
+    currentSyncState = { ...currentSyncState, status: 'syncing' };
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mykursus_sync_status', { detail: currentSyncState }));
+    }
+
     const data = {
       courses: getFromStorage<Course[]>(STORAGE_KEYS.COURSES, []),
       organizers: getFromStorage<Organizer[]>(STORAGE_KEYS.ORGANIZERS, []),
@@ -1286,7 +1579,29 @@ class PlatformStorageRepository {
       enrollments: getFromStorage<CourseEnrollment[]>(STORAGE_KEYS.ENROLLMENTS, []),
       attendances: getFromStorage<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE_RECORDS, []),
     };
-    return await syncAllLocalDataToFirestore(data);
+
+    const res = await syncAllLocalDataToFirestore(data);
+    if (res.success) {
+      currentSyncState = {
+        status: 'synced',
+        lastSyncedAt: new Date().toISOString(),
+        count: res.count
+      };
+    } else {
+      currentSyncState = {
+        status: 'error',
+        error: res.error || 'Gagal menyegerak ke Cloud Firestore'
+      };
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mykursus_sync_status', { detail: currentSyncState }));
+    }
+    return res;
+  }
+
+  public getAutoSyncStatus() {
+    return currentSyncState;
   }
 
   // --- Authorization & RBAC Enforcement (DCOREV1 Section 03 & 28) ---
@@ -1898,7 +2213,11 @@ class PlatformStorageRepository {
       let existingP = participants.find(p => {
         const pNorm = normalizePhoneNumber(p.phone);
         const phoneMatch = Boolean(normPhone && pNorm && normPhone === pNorm);
-        const salaryMatch = Boolean(cleanSalary && p.salaryNumber && p.salaryNumber.trim() === cleanSalary);
+        const salaryMatch = Boolean(
+          cleanSalary && 
+          p.salaryNumber && 
+          p.salaryNumber.trim().toLowerCase() === cleanSalary.toLowerCase()
+        );
         return phoneMatch || salaryMatch;
       });
 

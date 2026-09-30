@@ -298,8 +298,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {activeCourses.map((c) => (
-                  <div key={c.id} className="p-3.5 border-2 border-zinc-900 bg-emerald-50/30 flex flex-col gap-2">
+                {activeCourses.map((c, idx) => (
+                  <div key={`${c.id}-${idx}`} className="p-3.5 border-2 border-zinc-900 bg-emerald-50/30 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-zinc-950">{c.title}</span>
                       {c.isFeaturedActive && (

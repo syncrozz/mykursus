@@ -210,7 +210,7 @@ export const ImportCSVModal: React.FC<ImportCSVModalProps> = ({
                   <span>Aliran Kerja Import Selamat (SES v4.4):</span>
                 </div>
                 <p className="leading-relaxed">
-                  Fail CSV akan disemak secara pra-komitmen (Pre-commit Validation). Sistem akan mengesan nombor telefon secara selamat (termasuk notasi saintifik dari perisian spreadsheet), mengenal pasti duplikasi dalam fail dan kursus sedia ada, serta membolehkan semakan penuh sebelum disimpan.
+                  Fail CSV akan disemak secara pra-komitmen (Pre-commit Validation). Sistem menyokong import peserta menggunakan <strong>Nombor Telefon</strong> ATAU <strong>No. Gaji / ID</strong> (sesuai untuk peserta tanpa nombor telefon peribadi), mengenal pasti duplikasi dalam fail dan kursus sedia ada, serta membolehkan semakan penuh sebelum disimpan.
                 </p>
                 <div className="text-[11px] text-zinc-500 font-mono">
                   Lajur yang disokong: Nama, No Telefon, No Gaji / ID, Institusi / Agensi, Jawatan, Emel, Bilik, Kumpulan, Status.
@@ -310,7 +310,7 @@ export const ImportCSVModal: React.FC<ImportCSVModalProps> = ({
                       }}
                       className="rounded text-emerald-600 focus:ring-0"
                     />
-                    <span>Kemas kini rekod peserta sedia ada jika no. telefon sepadan</span>
+                    <span>Kemas kini rekod peserta sedia ada jika no. telefon atau no. gaji sepadan</span>
                   </label>
                 </div>
               )}
@@ -460,10 +460,20 @@ export const ImportCSVModal: React.FC<ImportCSVModalProps> = ({
                               {r.cleanName || <span className="italic text-zinc-400">(Kosong)</span>}
                             </td>
                             <td className="p-2 font-mono text-zinc-800">
-                              {formatPhoneNumber(r.rawPhone) || <span className="text-red-500 font-sans italic">Tiada</span>}
+                              {formatPhoneNumber(r.rawPhone) || (
+                                <span className="text-zinc-500 font-sans italic text-[11px]">
+                                  {r.salaryNumber ? '(Guna No. Gaji)' : 'Tiada'}
+                                </span>
+                              )}
                             </td>
-                            <td className="p-2 font-mono text-zinc-600">
-                              {r.salaryNumber || '-'}
+                            <td className="p-2 font-mono text-zinc-800">
+                              {r.salaryNumber ? (
+                                <span className="font-bold text-zinc-900 bg-zinc-100 px-1.5 py-0.5 border border-zinc-200">
+                                  {r.salaryNumber}
+                                </span>
+                              ) : (
+                                <span className="text-zinc-400">-</span>
+                              )}
                             </td>
                             <td className="p-2 text-zinc-700">
                               {r.institutionOrAgency}

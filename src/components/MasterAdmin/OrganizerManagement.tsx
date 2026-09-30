@@ -35,6 +35,7 @@ export const OrganizerManagement: React.FC<OrganizerManagementProps> = ({
   const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('1234');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +68,7 @@ export const OrganizerManagement: React.FC<OrganizerManagementProps> = ({
       code: cleanCode,
       contactEmail: email.trim(),
       contactPhone: phone.trim(),
+      pin: pin.trim() || '1234',
       description: description.trim(),
       memberUserIds: [],
       createdAt: new Date().toISOString(),
@@ -79,6 +81,7 @@ export const OrganizerManagement: React.FC<OrganizerManagementProps> = ({
     setCode('');
     setEmail('');
     setPhone('');
+    setPin('1234');
     setDescription('');
     setError(null);
   };
@@ -172,6 +175,10 @@ export const OrganizerManagement: React.FC<OrganizerManagementProps> = ({
                       <Mail className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                       <span className="truncate">{org.contactEmail}</span>
                     </p>
+                    <p className="flex items-center justify-between text-[11px] text-zinc-700 bg-zinc-50 px-2 py-0.5 border border-zinc-200">
+                      <span className="text-[10px] text-zinc-500 uppercase font-sans font-bold">PIN Akses:</span>
+                      <span className="font-bold text-emerald-700 font-mono tracking-wider">{org.pin || '1234'}</span>
+                    </p>
                     {org.contactPhone && (
                       <p className="flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
@@ -193,9 +200,9 @@ export const OrganizerManagement: React.FC<OrganizerManagementProps> = ({
 
                   {orgCourses.length > 0 ? (
                     <div className="space-y-1">
-                      {orgCourses.map(c => (
+                      {orgCourses.map((c, idx) => (
                         <div 
-                          key={c.id}
+                          key={`${c.id}-${idx}`}
                           onClick={() => onSelectCourse(c)}
                           className="text-[11px] font-medium text-zinc-800 hover:text-blue-700 hover:underline cursor-pointer flex items-center gap-1 truncate"
                         >
@@ -279,6 +286,23 @@ export const OrganizerManagement: React.FC<OrganizerManagementProps> = ({
                   placeholder="ppki@kptm.edu.my"
                   className="w-full text-xs p-2 bg-zinc-50 border border-zinc-900 focus:outline-none focus:bg-white"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                  PIN Keselamatan Log Masuk Penganjur (Lalai: 1234)
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="1234"
+                  className="w-full text-xs font-mono font-bold p-2 bg-zinc-50 border border-zinc-900 focus:outline-none focus:bg-white"
+                />
+                <p className="text-[10px] text-zinc-500 mt-0.5">
+                  Digunakan oleh penganjur untuk log masuk ke Ruang Penganjur.
+                </p>
               </div>
 
               <div>
