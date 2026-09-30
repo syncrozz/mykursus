@@ -13,6 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Course, ApprovalStatus } from '../../types';
+import { platformStorage } from '../../services/storage';
 import { formatDateDMY, formatDateRangeDMY } from '../../utils/dateFormatter';
 
 interface CourseInfoTabProps {
@@ -32,6 +33,8 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
   const [title, setTitle] = useState(course.title);
   const [subtitle, setSubtitle] = useState(course.subtitle || '');
   const [code, setCode] = useState(course.code || '');
+  const [slug, setSlug] = useState(course.slug || '');
+  const [slugError, setSlugError] = useState('');
   const [description, setDescription] = useState(course.description || '');
   const [instructions, setInstructions] = useState(course.instructions || '');
   const [objectives, setObjectives] = useState<string[]>(course.objectives || []);
@@ -48,6 +51,8 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
     setTitle(course.title || '');
     setSubtitle(course.subtitle || '');
     setCode(course.code || '');
+    setSlug(course.slug || '');
+    setSlugError('');
     setDescription(course.description || '');
     setInstructions(course.instructions || '');
     setObjectives(course.objectives || []);
@@ -55,7 +60,7 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
     setEndDate(course.endDate || '');
     setVenueName(course.venueName || '');
     setVenueAddress(course.venueAddress || '');
-  }, [course.id, course.updatedAt, course.title, course.startDate, course.endDate, course.venueName]);
+  }, [course.id, course.updatedAt, course.title, course.slug, course.startDate, course.endDate, course.venueName]);
 
   // Change request modal state
   const [showChangeModal, setShowChangeModal] = useState<'DATES' | 'VENUE' | null>(null);
@@ -76,10 +81,38 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
 
   const handleSaveOperationalInfo = (e: React.FormEvent) => {
     e.preventDefault();
+    setSlugError('');
+
+    if (!title.trim()) {
+      return;
+    }
+
+    const cleanSlug = (slug || course.slug || 'kursus')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/(^-|-$)/g, '');
+
+    if (!cleanSlug) {
+      setSlugError('Pautan pendek (slug) tidak boleh kosong.');
+      return;
+    }
+
+    // Validate slug uniqueness against other courses
+    if (cleanSlug !== course.slug) {
+      const allCourses = platformStorage.getCourses();
+      const collision = allCourses.find(c => c.slug.toLowerCase().trim() === cleanSlug && c.id !== course.id);
+      if (collision) {
+        setSlugError(`Pautan pendek "/${cleanSlug}" telah digunakan oleh kursus lain. Sila pilih pautan pendek yang berbeza.`);
+        return;
+      }
+    }
+
     const updates: Partial<Course> = {
       title: title.trim(),
       subtitle: subtitle.trim(),
       code: code.trim().toUpperCase(),
+      slug: cleanSlug,
       description: description.trim(),
       instructions: instructions.trim(),
       objectives,
@@ -119,7 +152,7 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
         <div className="bg-amber-50 border-2 border-amber-500 p-4 text-xs text-amber-950 flex items-start gap-3 shadow-[2px_2px_0px_0px_rgba(245,158,11,1)]">
           <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <strong>Tadbir Urus Rasmi Aktif:</strong> Kursus ini berstatus <strong>{course.approvalStatus}</strong>. Maklumat sinopsis, objektif dan arahan boleh dikemaskini terus, manakala <strong>Tarikh Rasmi</strong> dan <strong>Lokasi Rasmi</strong> memerlukan kelulusan Master Admin melalui permohonan pindaan.
+            <strong>Tadbir Urus Rasmi:</strong> Kursus ini berstatus <strong>{course.approvalStatus}</strong>. Anda bebas <strong>menukar Tajuk Kursus dan Pautan Pendek (Slug) pada bila-bila masa</strong> tanpa sekatan. Hanya <strong>Tarikh Rasmi</strong> dan <strong>Lokasi Rasmi</strong> yang memerlukan pengesahan Master Admin bagi mengelakkan pertembungan dewan hotel.
           </div>
         </div>
       )}
@@ -136,17 +169,90 @@ export const CourseInfoTab: React.FC<CourseInfoTabProps> = ({
             <span className="text-[11px] font-mono text-zinc-500">ID: {course.id}</span>
           </div>
 
+          {/* Tajuk Kursus (Freely Editable) */}
           <div>
-            <label className="block text-xs font-bold text-zinc-900 mb-1">
-              Tajuk Kursus <span className="text-red-600">*</span>
-            </label>
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+              <label className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                <span>Tajuk Kursus</span>
+                <span className="text-red-600">*</span>
+              </label>
+              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase border border-emerald-300">
+                ✓ Boleh Ditukar Bebas Bila-bila Masa
+              </span>
+            </div>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
+              placeholder="cth. Kursus Transformasi Pedagogi MPU2412 KIAR"
               className="w-full p-2.5 text-sm border-2 border-zinc-300 focus:border-zinc-900 focus:outline-hidden font-medium"
             />
+            <p className="text-[11px] text-zinc-500 mt-1">
+              Penganjur bebas mengemaskini atau menukar tajuk kursus ini pada bila-bila masa tanpa mengganggu pautan capaian peserta.
+            </p>
+          </div>
+
+          {/* Custom Short Slug Configuration */}
+          <div className="p-4 bg-zinc-50 border-2 border-zinc-900 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <label className="text-xs font-black uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Pautan Pendek Kursus (Custom Short Slug)</span>
+                </label>
+                <p className="text-[11px] text-zinc-600">
+                  Pautan pendek ini <strong>tidak perlu mengikut tajuk kursus yang panjang</strong>. Anda boleh menetapkan perkataan yang pendek agar mudah ditaip oleh peserta.
+                </p>
+              </div>
+
+              {code && (
+                <button
+                  type="button"
+                  onClick={() => setSlug(code.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="px-2.5 py-1 bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[10px] font-mono font-bold transition-colors cursor-pointer"
+                  title="Gunakan kod kursus sebagai pautan pendek"
+                >
+                  Gunakan Kod: /{code.toLowerCase().replace(/[^a-z0-9-]/g, '')}
+                </button>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center">
+                <span className="inline-flex items-center px-3 py-2 text-xs font-mono font-bold bg-zinc-200 border-2 border-r-0 border-zinc-900 text-zinc-700">
+                  {typeof window !== 'undefined' ? `${window.location.host}/` : 'mykursus.syncrozz.com/'}
+                </span>
+                <input
+                  type="text"
+                  value={slug}
+                  onChange={(e) => {
+                    setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                    setSlugError('');
+                  }}
+                  placeholder="cth. kiar atau mpu2412"
+                  className="flex-1 p-2 text-xs font-mono font-bold border-2 border-zinc-900 bg-white focus:bg-amber-50/40 focus:outline-hidden text-blue-700"
+                />
+              </div>
+
+              {slugError && (
+                <p className="text-xs text-red-600 mt-1.5 font-semibold flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{slugError}</span>
+                </p>
+              )}
+
+              <div className="flex items-center justify-between text-[11px] text-zinc-500 mt-1.5 flex-wrap gap-2">
+                <span>
+                  Cadangan slug ringkas: <code>kiar</code>, <code>mpu2412</code>, <code>pedagogi</code>, <code>ai-2026</code>.
+                </span>
+                {slug && (
+                  <span className="font-mono text-zinc-700 bg-zinc-200 px-1.5 py-0.5 text-[10px]">
+                    URL Peserta: /{slug}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

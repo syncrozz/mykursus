@@ -203,7 +203,10 @@ export const ImportSessionCSVModal: React.FC<ImportSessionCSVModalProps> = ({
     }));
 
     // 3. Affected days if replace mode
-    const replaceDays = importMode === 'REPLACE' ? Array.from(daysInImport) : [];
+    // When REPLACE is selected, replace all existing sessions for the entire course
+    const replaceDays = importMode === 'REPLACE' 
+      ? [-1, ...Array.from(existingDayNumbers), ...Array.from(daysInImport)] 
+      : [];
 
     onCommitImport(sessionsToImport, newDaysToCreate, replaceDays);
     onClose();
@@ -402,14 +405,24 @@ export const ImportSessionCSVModal: React.FC<ImportSessionCSVModalProps> = ({
                       value="REPLACE"
                       checked={importMode === 'REPLACE'}
                       onChange={() => setImportMode('REPLACE')}
-                      className="accent-zinc-900"
+                      className="accent-red-600"
                     />
                     <span className="font-medium text-red-700 font-bold">
-                      Gantikan slot pada hari terlibat (Replace)
+                      Gantikan data sedia ada dengan yang baru bagi keseluruhan kursus (Replace)
                     </span>
                   </label>
                 </div>
               </div>
+
+              {/* Warning notice when REPLACE mode is active */}
+              {importMode === 'REPLACE' && (
+                <div className="p-3 bg-red-50 border-2 border-red-500 text-red-950 text-xs font-medium flex items-start gap-2 shadow-xs animate-in fade-in duration-150">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Pilihan Ganti Keseluruhan Aktif:</strong> Apabila import disahkan, <strong>keseluruhan data slot sesi sedia ada</strong> bagi kursus ini akan digantikan secara penuh dengan senarai slot baharu daripada CSV ini.
+                  </div>
+                </div>
+              )}
 
               {/* Filter Tabs & Selection Control */}
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 pb-2">
@@ -606,10 +619,16 @@ export const ImportSessionCSVModal: React.FC<ImportSessionCSVModalProps> = ({
                 type="button"
                 onClick={handleConfirmImport}
                 disabled={selectedIndices.size === 0}
-                className="px-4 py-2 bg-zinc-900 text-white text-xs font-bold hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer"
+                className={`px-4 py-2 text-white text-xs font-bold disabled:opacity-50 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(24,24,27,1)] cursor-pointer transition-colors ${
+                  importMode === 'REPLACE' ? 'bg-red-700 hover:bg-red-800' : 'bg-zinc-900 hover:bg-zinc-800'
+                }`}
               >
                 <Check className="w-4 h-4 text-emerald-400" />
-                <span>Sahkan & Import {selectedIndices.size} Slot</span>
+                <span>
+                  {importMode === 'REPLACE'
+                    ? `Gantikan Keseluruhan & Import ${selectedIndices.size} Slot`
+                    : `Sahkan & Import ${selectedIndices.size} Slot`}
+                </span>
               </button>
             )}
           </div>

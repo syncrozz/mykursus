@@ -57,8 +57,13 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
 
   const [errors, setErrors] = useState<{ title?: string }>({});
 
-  // Computed slug preview
-  const previewSlug = (customSlug || title || 'kursus-baharu')
+  // Computed slug preview (prefers short code or concise keyword over giant title sentence)
+  const defaultShortSlug = (code || (title ? title.split(' ')[0] : 'kursus'))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  const previewSlug = (customSlug || defaultShortSlug || 'kursus-baharu')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
@@ -290,24 +295,41 @@ export const CreateCourseModal: React.FC<CreateCourseModalProps> = ({
           </div>
 
           {/* Section 3: URL Slug Configuration */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-mono font-black uppercase text-zinc-500 tracking-wider flex items-center gap-2 border-b border-zinc-200 pb-1.5">
-              <Sparkles className="w-4 h-4 text-zinc-700" />
-              3. Pautan URL Unik Peserta (Option A Public Slug)
-            </h3>
-            <div className="bg-zinc-100 p-3 border border-zinc-300 flex items-center gap-2 font-mono text-xs">
-              <span className="text-zinc-500 select-none">/</span>
+          <div className="space-y-2 p-3 bg-zinc-50 border border-zinc-300">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="text-xs font-mono font-black uppercase text-zinc-700 tracking-wider flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>3. Pautan URL Pendek Peserta (Custom Short Slug)</span>
+              </h3>
+              {code && (
+                <button
+                  type="button"
+                  onClick={() => setCustomSlug(code.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="px-2 py-0.5 bg-white hover:bg-zinc-100 border border-zinc-300 text-[10px] font-mono font-bold text-zinc-700 cursor-pointer"
+                >
+                  Gunakan Kod: /{code.toLowerCase().replace(/[^a-z0-9-]/g, '')}
+                </button>
+              )}
+            </div>
+
+            <div className="bg-white p-2 border-2 border-zinc-900 flex items-center gap-1 font-mono text-xs">
+              <span className="text-zinc-500 select-none font-bold">/</span>
               <input
                 type="text"
                 value={customSlug}
                 onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 placeholder={previewSlug}
-                className="flex-1 bg-white px-2 py-1 border border-zinc-300 font-bold text-blue-700 focus:outline-hidden focus:border-blue-600"
+                className="flex-1 bg-transparent px-1 py-0.5 font-bold text-blue-700 focus:outline-hidden"
               />
             </div>
-            <p className="text-[11px] text-zinc-500">
-              Pautan ini akan digunakan oleh peserta untuk mengakses maklumat kursus secara terus.
-            </p>
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 flex-wrap gap-1">
+              <span>
+                Slug <strong>tidak perlu mengikut tajuk kursus yang panjang</strong>. Anda bebas menetapkan kata kunci pendek (cth: <code>kiar</code>, <code>mpu2412</code>, <code>bengkel-ai</code>).
+              </span>
+              <span className="font-mono text-zinc-700 bg-zinc-200 px-1 py-0.5 text-[10px]">
+                Pautan Akhir: /{previewSlug}
+              </span>
+            </div>
           </div>
 
           {/* Section 4: Pluggable Modules Selection */}

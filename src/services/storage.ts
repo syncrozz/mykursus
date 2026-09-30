@@ -1975,19 +1975,32 @@ class PlatformStorageRepository {
     let sessions = getFromStorage<SessionItem[]>(STORAGE_KEYS.SESSIONS, []);
 
     if (replaceDays && replaceDays.length > 0) {
-      const replaceSet = new Set(replaceDays);
-      sessions = sessions.filter(s => !(s.courseId === courseId && replaceSet.has(s.dayNumber)));
+      if (replaceDays.includes(-1)) {
+        // Complete replacement: wipe ALL previous sessions of this course
+        sessions = sessions.filter(s => s.courseId !== courseId);
+      } else {
+        const replaceSet = new Set(replaceDays);
+        sessions = sessions.filter(s => !(s.courseId === courseId && replaceSet.has(s.dayNumber)));
+      }
     }
 
+    const insertedSessions: SessionItem[] = [];
     sessionsToImport.forEach(newSess => {
-      sessions.push({
+      const item: SessionItem = {
         ...newSess,
         courseId,
         updatedAt: new Date().toISOString()
-      });
+      };
+      sessions.push(item);
+      insertedSessions.push(item);
     });
 
     saveToStorage(STORAGE_KEYS.SESSIONS, sessions);
+
+    // Sync newly inserted sessions to Cloud Firestore in background
+    insertedSessions.forEach(s => {
+      syncSessionToFirestore(s).catch(err => console.warn('Firestore sync session error:', err));
+    });
 
     this.addAuditLog(
       'IMPORT_CSV_SLOT',
